@@ -15,22 +15,11 @@
 #include "opportunity_detector.hpp"
 #include "risk_manager.hpp"
 #include "../exchange/exchange_interface.hpp"
+#include "../core/types.hpp"
 
 namespace ats {
 
-class ConfigManager;
-
-// Trade execution states
-enum class TradeState {
-    PENDING,         // Trade queued for execution
-    BUYING,          // Executing buy order
-    SELLING,         // Executing sell order
-    COMPLETED,       // Trade completed successfully
-    FAILED,          // Trade failed
-    CANCELLED,       // Trade cancelled
-    PARTIAL,         // Partially filled
-    TIMEOUT          // Trade timed out
-};
+// Note: TradeState moved to types.hpp to avoid duplication
 
 // Order time tracking additions
 struct OrderTiming {
@@ -70,42 +59,7 @@ struct ExecutionPlan {
                      take_profit_price(0.0), max_execution_time_seconds(120.0) {}
 };
 
-// Trade execution result
-struct ExecutionResult {
-    std::string trade_id;
-    TradeState final_state;
-    
-    // Financial results
-    double realized_pnl;
-    double gross_profit;
-    double total_fees;
-    double net_profit;
-    double actual_profit_percent;
-    
-    // Execution metrics
-    double total_execution_time_ms;
-    double buy_execution_time_ms;
-    double sell_execution_time_ms;
-    double actual_slippage_percent;
-    
-    // Order details
-    Order buy_order_result;
-    Order sell_order_result;
-    
-    // Error information
-    std::vector<std::string> errors;
-    std::vector<std::string> warnings;
-    
-    bool was_successful() const {
-        return final_state == TradeState::COMPLETED && realized_pnl > 0;
-    }
-    
-    ExecutionResult() : final_state(TradeState::PENDING), realized_pnl(0.0),
-                       gross_profit(0.0), total_fees(0.0), net_profit(0.0),
-                       actual_profit_percent(0.0), total_execution_time_ms(0.0),
-                       buy_execution_time_ms(0.0), sell_execution_time_ms(0.0),
-                       actual_slippage_percent(0.0) {}
-};
+// Note: ExecutionResult moved to types.hpp to avoid duplication
 
 // Active trade tracking
 struct ActiveTrade {

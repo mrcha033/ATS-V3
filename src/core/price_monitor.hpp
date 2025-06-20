@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <functional>
 
+#include "../core/types.hpp"
 #include "../exchange/exchange_interface.hpp"
 #include "../network/websocket_client.hpp"
 #include "../data/price_cache.hpp"

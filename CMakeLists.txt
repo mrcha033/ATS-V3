@@ -50,6 +50,7 @@ set(SOURCES
     src/data/price_cache.cpp
     
     # Core arbitrage engine (Phase 1-3)
+    src/core/types.hpp
     src/core/arbitrage_engine.cpp
     src/core/price_monitor.cpp
     src/core/opportunity_detector.cpp
@@ -107,7 +108,10 @@ endif()
 # Compiler-specific options
 if(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE
-        /W3 /WX-
+        /W3 /WX- /FS
+    )
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        _CRT_SECURE_NO_WARNINGS
     )
 else()
     target_compile_options(${PROJECT_NAME} PRIVATE

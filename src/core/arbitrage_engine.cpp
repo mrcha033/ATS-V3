@@ -81,7 +81,7 @@ bool ArbitrageEngine::AddExchange(std::unique_ptr<ExchangeInterface> exchange) {
     return true;
 }
 
-std::vector<ExchangeInterface*> ArbitrageEngine::GetExchanges() const {
+std::vector<ExchangeInterface*> ArbitrageEngine::GetExchanges() {
     std::lock_guard<std::mutex> lock(engine_mutex_);
     std::vector<ExchangeInterface*> result;
     
@@ -92,7 +92,7 @@ std::vector<ExchangeInterface*> ArbitrageEngine::GetExchanges() const {
     return result;
 }
 
-ExchangeInterface* ArbitrageEngine::GetExchange(const std::string& name) const {
+ExchangeInterface* ArbitrageEngine::GetExchange(const std::string& name) {
     std::lock_guard<std::mutex> lock(engine_mutex_);
     
     for (const auto& exchange : exchanges_) {

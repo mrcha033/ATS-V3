@@ -30,10 +30,10 @@ public:
     static void Initialize();
     static Logger& Instance();
     
-    void SetLevel(LogLevel level) { min_level_ = level; }
-    void SetConsoleOutput(bool enabled) { console_output_ = enabled; }
-    void SetFileOutput(bool enabled) { file_output_ = enabled; }
-    void SetLogFile(const std::string& path) { log_file_path_ = path; }
+    void SetLevel(LogLevel level) noexcept { min_level_ = level; }
+    void SetConsoleOutput(bool enabled) noexcept { console_output_ = enabled; }
+    void SetFileOutput(bool enabled) noexcept { file_output_ = enabled; }
+    void SetLogFile(const std::string& path) noexcept { log_file_path_ = path; }
     
     void Log(LogLevel level, const std::string& message);
     

@@ -10,16 +10,11 @@
 #include <chrono>
 #include <unordered_map>
 #include <memory>
+#include "../core/types.hpp"
 
 namespace ats {
 
-enum class WebSocketState {
-    DISCONNECTED,
-    CONNECTING,
-    CONNECTED,
-    RECONNECTING,
-    ERROR
-};
+// Note: WebSocketState moved to types.hpp to avoid duplication
 
 struct WebSocketMessage {
     std::string data;
@@ -77,6 +72,20 @@ private:
     std::chrono::seconds ping_interval_;
     std::chrono::seconds pong_timeout_;
     
+    // Connection state
+    std::atomic<bool> connected_;
+    
+    // Configuration
+    std::string user_agent_;
+    int default_timeout_ms_;
+    bool verify_ssl_;
+    bool auto_reconnect_;
+    int reconnect_interval_ms_;
+    
+    // Threading
+    std::thread worker_thread_;
+    std::thread send_thread_;
+    
 public:
     WebSocketClient();
     ~WebSocketClient();
@@ -96,6 +105,11 @@ public:
     void SetMaxMessageSize(size_t size) { max_message_size_ = size; }
     void SetPingInterval(std::chrono::seconds interval) { ping_interval_ = interval; }
     void SetPongTimeout(std::chrono::seconds timeout) { pong_timeout_ = timeout; }
+    
+    void SetUserAgent(const std::string& user_agent);
+    void SetDefaultTimeout(int timeout_ms);
+    void SetSslVerification(bool verify);
+    void SetAutoReconnect(bool auto_reconnect, int interval_ms = 5000);
     
     // Message sending
     bool SendMessage(const std::string& message);
@@ -121,6 +135,9 @@ public:
     void LogStatistics() const;
     void ResetStatistics();
     
+    // Status
+    std::string GetConnectionStatus() const;
+    
 private:
     void ConnectionLoop();
     bool AttemptConnection();
@@ -139,6 +156,13 @@ private:
     std::string GenerateKey();
     std::string ComputeAcceptKey(const std::string& key);
     bool ValidateHttpResponse(const std::string& response);
+    
+    // Private methods
+    void WorkerLoop();
+    void SendLoop();
+    void HandleMessage(const std::string& message);
+    void HandleError(const std::string& error);
+    void Reconnect();
 };
 
 // Multi-symbol WebSocket manager for exchanges

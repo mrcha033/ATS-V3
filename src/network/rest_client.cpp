@@ -444,6 +444,22 @@ void RestClient::GetAsync(const std::string& url, ResponseCallback callback,
     }).detach();
 }
 
+void RestClient::UpdateStatistics(const HttpResponse& response) {
+    std::lock_guard<std::mutex> lock(stats_mutex_);
+    
+    total_requests_++;
+    
+    if (response.IsSuccess()) {
+        successful_requests_++;
+    } else {
+        failed_requests_++;
+    }
+    
+    // Update average response time (simple moving average)
+    average_response_time_ms_ = ((average_response_time_ms_ * (total_requests_ - 1)) + 
+                                response.response_time_ms) / total_requests_;
+}
+
 #endif // HAVE_CURL
 
 // Common implementation (works with both CURL and stub)

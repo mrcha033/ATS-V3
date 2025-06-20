@@ -4,12 +4,7 @@
 #include <unordered_map>
 #include <variant>
 #include <vector>
-
-// Forward declaration
-namespace ats {
-    using JsonValue = std::variant<std::nullptr_t, bool, int, double, std::string, 
-                                  std::vector<JsonValue>, std::unordered_map<std::string, JsonValue>>;
-}
+#include "../core/types.hpp"
 
 namespace ats {
 

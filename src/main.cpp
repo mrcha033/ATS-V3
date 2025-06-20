@@ -73,7 +73,9 @@ public:
                 }
                 
                 // Check system resources
-                system_monitor_->LogSystemStats();
+                auto metrics = system_monitor_->GetCurrentMetrics();
+                LOG_INFO("System Status - CPU: {:.1f}%, Memory: {:.1f}%, Disk: {:.1f}%", 
+                        metrics.cpu_usage_percent, metrics.memory_usage_percent, metrics.disk_usage_percent);
                 
                 // Sleep for 1 second
                 std::this_thread::sleep_for(std::chrono::seconds(1));

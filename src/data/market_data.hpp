@@ -9,7 +9,7 @@
 #include <unordered_set>
 #include <limits>
 
-#include "../exchange/exchange_interface.hpp"
+#include "../core/types.hpp"
 
 namespace ats {
 
@@ -66,21 +66,7 @@ struct MarketStats {
                    correlation(0.0), last_update(0) {}
 };
 
-// Cross-exchange price comparison
-struct PriceComparison {
-    std::string symbol;
-    std::unordered_map<std::string, Price> exchange_prices; // exchange_name -> Price
-    std::string highest_bid_exchange;
-    std::string lowest_ask_exchange;
-    double max_spread_percent;
-    long long timestamp;
-    
-    PriceComparison() : max_spread_percent(0.0), timestamp(0) {}
-    
-    bool HasArbitrageOpportunity(double min_profit_threshold) const {
-        return max_spread_percent >= min_profit_threshold;
-    }
-};
+// Note: PriceComparison moved to types.hpp to avoid duplication
 
 // Market depth analysis
 struct MarketDepth {

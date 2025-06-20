@@ -9,18 +9,9 @@
 
 #include "../utils/config_manager.hpp"
 #include "../exchange/exchange_interface.hpp"
+#include "../core/types.hpp"
 
 namespace ats {
-
-// Forward declarations
-class PriceMonitor;
-class OpportunityDetector;
-class TradeExecutor;
-class RiskManager;
-class PortfolioManager;
-struct ArbitrageOpportunity;
-struct ExecutionResult;
-enum class TradeState;
 
 class ArbitrageEngine {
 private:
@@ -39,7 +30,7 @@ private:
     // Threading
     std::thread main_thread_;
     std::atomic<bool> running_;
-    mutable std::mutex engine_mutex_;
+    std::mutex engine_mutex_;
     
     // Statistics
     std::atomic<long long> opportunities_found_;
@@ -58,8 +49,8 @@ public:
     
     // Exchange management
     bool AddExchange(std::unique_ptr<ExchangeInterface> exchange);
-    std::vector<ExchangeInterface*> GetExchanges() const;
-    ExchangeInterface* GetExchange(const std::string& name) const;
+    std::vector<ExchangeInterface*> GetExchanges();
+    ExchangeInterface* GetExchange(const std::string& name);
     
     // Statistics
     long long GetOpportunitiesFound() const { return opportunities_found_.load(); }

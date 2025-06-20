@@ -5,11 +5,9 @@
 #include <vector>
 #include <variant>
 #include <stdexcept>
+#include "../core/types.hpp"
 
 namespace ats {
-
-using JsonValue = std::variant<std::nullptr_t, bool, int, double, std::string, 
-                              std::vector<JsonValue>, std::unordered_map<std::string, JsonValue>>;
 
 class JsonParseError : public std::runtime_error {
 public:

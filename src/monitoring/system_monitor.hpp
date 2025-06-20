@@ -1,101 +1,92 @@
 #pragma once
 
+#include <string>
+#include <vector>
+#include <chrono>
 #include <thread>
 #include <atomic>
-#include <chrono>
 #include <mutex>
-#include <vector>
+#include <memory>
 
 namespace ats {
 
-struct SystemStats {
-    double cpu_percent;
-    double memory_percent;
-    double memory_used_mb;
-    double memory_total_mb;
+struct SystemMetrics {
+    double cpu_usage_percent;
+    double memory_usage_percent;
     double disk_usage_percent;
-    double temperature_celsius;
-    double load_average_1min;
-    long long uptime_seconds;
-    long long timestamp;
+    double cpu_temperature_celsius;
+    long system_uptime_seconds;
+    std::chrono::system_clock::time_point timestamp;
     
-    SystemStats() : cpu_percent(0.0), memory_percent(0.0), memory_used_mb(0.0), 
-                   memory_total_mb(0.0), disk_usage_percent(0.0), temperature_celsius(0.0),
-                   load_average_1min(0.0), uptime_seconds(0), timestamp(0) {}
+    SystemMetrics() 
+        : cpu_usage_percent(0.0)
+        , memory_usage_percent(0.0)
+        , disk_usage_percent(0.0)
+        , cpu_temperature_celsius(0.0)
+        , system_uptime_seconds(0)
+        , timestamp(std::chrono::system_clock::now()) {}
 };
 
 class SystemMonitor {
-private:
-    std::thread monitor_thread_;
-    std::atomic<bool> running_;
-    std::chrono::seconds check_interval_;
-    
-    SystemStats current_stats_;
-    mutable std::mutex stats_mutex_;
-    
-    // Alert thresholds
-    double cpu_threshold_;
-    double memory_threshold_;
-    double temperature_threshold_;
-    
-    // Metrics history
-    std::vector<SystemStats> metrics_history_;
-    mutable std::mutex history_mutex_;
-    
 public:
-    SystemMonitor();
+    explicit SystemMonitor(int update_interval_ms = 5000);
     ~SystemMonitor();
     
-    // Lifecycle
-    bool Initialize();
+    // Control methods
     void Start();
     void Stop();
-    bool IsRunning() const { return running_.load(); }
+    bool IsRunning() const;
     
-    // Configuration
-    void SetCheckInterval(std::chrono::seconds interval) { check_interval_ = interval; }
+    // Metrics access
+    SystemMetrics GetCurrentMetrics() const;
+    std::vector<SystemMetrics> GetMetricsHistory(size_t max_entries = 100) const;
+    
+    // Individual metric getters
+    double GetCpuUsage() const;
+    double GetMemoryUsage() const;
+    double GetDiskUsage() const;
+    double GetCpuTemperature() const;
+    long GetSystemUptime() const;
+    
+    // Threshold management
     void SetCpuThreshold(double threshold) { cpu_threshold_ = threshold; }
     void SetMemoryThreshold(double threshold) { memory_threshold_ = threshold; }
+    void SetDiskThreshold(double threshold) { disk_threshold_ = threshold; }
     void SetTemperatureThreshold(double threshold) { temperature_threshold_ = threshold; }
     
-    // Statistics
-    SystemStats GetCurrentMetrics() const;
-    SystemStats GetCurrentStats() const;
-    bool IsSystemHealthy() const;
-    bool IsHealthy() const;
-    std::string GetStatus() const;
-    
-    // Logging
-    void LogSystemStats() const;
-    void LogSystemInfo() const;
-    
-    // History access
-    std::vector<SystemStats> GetMetricsHistory(size_t count = 100) const {
-        std::lock_guard<std::mutex> lock(history_mutex_);
-        if (metrics_history_.size() <= count) {
-            return metrics_history_;
-        }
-        return std::vector<SystemStats>(
-            metrics_history_.end() - count, 
-            metrics_history_.end()
-        );
-    }
-    
+    // Alert checking
+    std::vector<std::string> CheckThresholds() const;
+    bool HasCriticalAlert() const;
+
 private:
-    void MonitorLoop();
-    void UpdateStats();
+    // Configuration
+    int update_interval_;
     
-    // Platform-specific implementations
-    double GetCpuUsage();
-    double GetMemoryUsage();
-    double GetMemoryUsedMB();
-    double GetMemoryTotalMB();
-    double GetDiskUsage();
-    double GetTemperature();  // Raspberry Pi specific
-    double GetLoadAverage();
-    long long GetUptime();
+    // Threading
+    std::atomic<bool> running_;
+    std::thread monitoring_thread_;
     
-    void CheckAlerts(const SystemStats& stats);
+    // Metrics storage
+    mutable std::mutex history_mutex_;
+    std::vector<SystemMetrics> metrics_history_;
+    
+    // Thresholds
+    double cpu_threshold_;
+    double memory_threshold_;
+    double disk_threshold_;
+    double temperature_threshold_;
+    
+    // Private methods
+    void MonitoringLoop();
+    SystemMetrics CollectMetrics() const;
+    void UpdateMetricsHistory(const SystemMetrics& metrics);
+    
+    // Platform-specific methods
+    double CalculateCpuUsage() const;
+    double CalculateMemoryUsage() const;
+    double CalculateDiskUsage() const;
+    double ReadCpuTemperature() const;
+    long ReadSystemUptime() const;
 };
 
 } // namespace ats 

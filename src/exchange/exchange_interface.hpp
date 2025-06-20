@@ -5,93 +5,9 @@
 #include <memory>
 #include <functional>
 #include <chrono>
+#include "../core/types.hpp"
 
 namespace ats {
-
-// Order enums
-enum class OrderType {
-    MARKET,
-    LIMIT
-};
-
-enum class OrderSide {
-    BUY,
-    SELL
-};
-
-enum class OrderStatus {
-    PENDING,
-    NEW,
-    PARTIAL,
-    FILLED,
-    CANCELLED,
-    REJECTED
-};
-
-struct Price {
-    std::string symbol;
-    double bid;
-    double ask;
-    double last;
-    double volume;    // Add volume field to match usage
-    long long timestamp;
-    
-    Price() : bid(0.0), ask(0.0), last(0.0), volume(0.0), timestamp(0) {}
-    Price(const std::string& sym, double b, double a, double l, double v, long long ts)
-        : symbol(sym), bid(b), ask(a), last(l), volume(v), timestamp(ts) {}
-        
-    double GetSpread() const { return ask - bid; }
-    double GetMidPrice() const { return (bid + ask) / 2.0; }
-};
-
-struct OrderBook {
-    std::string symbol;
-    std::vector<std::pair<double, double>> bids; // price, volume
-    std::vector<std::pair<double, double>> asks; // price, volume
-    long long timestamp;
-    
-    double GetBestBid() const { return bids.empty() ? 0.0 : bids[0].first; }
-    double GetBestAsk() const { return asks.empty() ? 0.0 : asks[0].first; }
-    double GetSpread() const { return GetBestAsk() - GetBestBid(); }
-};
-
-struct Balance {
-    std::string asset;
-    double free;
-    double locked;
-    double total() const { return free + locked; }
-};
-
-struct Order {
-    std::string order_id;
-    std::string id;              // Alias for order_id for compatibility
-    std::string exchange;
-    std::string symbol;
-    OrderType type;              // MARKET, LIMIT
-    OrderSide side;              // BUY, SELL
-    double quantity;
-    double price;                // For limit orders
-    double filled_quantity;
-    double avg_fill_price;
-    OrderStatus status;
-    std::string error_message;
-    long long timestamp;
-    long long filled_time;       // Time when order was filled
-    
-    Order() : quantity(0.0), price(0.0), filled_quantity(0.0), 
-             avg_fill_price(0.0), status(OrderStatus::PENDING), 
-             timestamp(0), filled_time(0) {
-        // Keep id and order_id in sync
-        id = order_id;
-    }
-};
-
-enum class ExchangeStatus {
-    DISCONNECTED,
-    CONNECTING,
-    CONNECTED,
-    ERROR
-};
 
 class ExchangeInterface {
 public:

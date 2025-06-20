@@ -166,12 +166,12 @@ bool ConfigManager::ParseJson(const std::string& json_content) {
         // Use proper JSON parser
         JsonValue root = JsonParser::ParseString(json_content);
         
-        if (!json::IsObject(root)) {
+        if (!ats::json::IsObject(root)) {
             LOG_ERROR("JSON root is not an object");
             return false;
         }
         
-        auto rootObj = json::AsObject(root);
+        auto rootObj = ats::json::AsObject(root);
         ParseJsonObject(rootObj, "");
         
         LOG_INFO("Configuration parsed successfully from JSON");
@@ -220,37 +220,45 @@ T ConfigManager::GetValue(const std::string& key, const T& default_value) const 
 }
 
 void ConfigManager::ParseJsonObject(const std::unordered_map<std::string, JsonValue>& obj, const std::string& prefix) {
-    for (const auto& [key, value] : obj) {
-        std::string full_key = prefix.empty() ? key : prefix + "." + key;
-        ParseJsonValue(full_key, value);
+    try {
+        for (const auto& [key, value] : obj) {
+            std::string full_key = prefix.empty() ? key : prefix + "." + key;
+            ParseJsonValue(full_key, value);
+        }
+    } catch (const std::exception& e) {
+        LOG_ERROR("Error parsing JSON object at prefix '{}': {}", prefix, e.what());
     }
 }
 
 void ConfigManager::ParseJsonValue(const std::string& key, const JsonValue& value) {
-    if (json::IsBool(value)) {
-        SetBool(key, json::AsBool(value));
-    }
-    else if (json::IsInt(value)) {
-        SetInt(key, json::AsInt(value));
-    }
-    else if (json::IsDouble(value)) {
-        SetDouble(key, json::AsDouble(value));
-    }
-    else if (json::IsString(value)) {
-        SetString(key, json::AsString(value));
-    }
-    else if (json::IsObject(value)) {
-        auto obj = json::AsObject(value);
-        ParseJsonObject(obj, key);
-    }
-    else if (json::IsArray(value)) {
-        // Arrays are more complex - for now, skip them
-        // In a production system, we'd need to handle array parsing
-        LOG_WARNING("Array values not yet supported for config key: {}", key);
-    }
-    else if (json::IsNull(value)) {
-        // Skip null values
-        LOG_DEBUG("Null value for config key: {}", key);
+    try {
+        if (ats::json::IsBool(value)) {
+            SetBool(key, ats::json::AsBool(value));
+        }
+        else if (ats::json::IsInt(value)) {
+            SetInt(key, ats::json::AsInt(value));
+        }
+        else if (ats::json::IsDouble(value)) {
+            SetDouble(key, ats::json::AsDouble(value));
+        }
+        else if (ats::json::IsString(value)) {
+            SetString(key, ats::json::AsString(value));
+        }
+        else if (ats::json::IsObject(value)) {
+            auto obj = ats::json::AsObject(value);
+            ParseJsonObject(obj, key);
+        }
+        else if (ats::json::IsArray(value)) {
+            // Arrays are more complex - for now, skip them
+            // In a production system, we'd need to handle array parsing
+            LOG_WARNING("Array values not yet supported for config key: {}", key);
+        }
+        else if (ats::json::IsNull(value)) {
+            // Skip null values
+            LOG_DEBUG("Null value for config key: {}", key);
+        }
+    } catch (const std::exception& e) {
+        LOG_ERROR("Error parsing JSON value for key '{}': {}", key, e.what());
     }
 }
 
