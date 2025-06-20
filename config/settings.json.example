@@ -1,0 +1,103 @@
+{
+  "app": {
+    "name": "ATS V3",
+    "version": "1.0.0",
+    "debug": false,
+    "log_level": "INFO"
+  },
+  "exchanges": {
+    "binance": {
+      "name": "binance",
+      "enabled": true,
+      "api_key": "YOUR_BINANCE_API_KEY",
+      "secret_key": "YOUR_BINANCE_SECRET_KEY",
+      "base_url": "https://api.binance.com",
+      "ws_url": "wss://stream.binance.com:9443/ws",
+      "rate_limit_per_second": 10,
+      "maker_fee": 0.001,
+      "taker_fee": 0.001,
+      "testnet": false
+    },
+    "upbit": {
+      "name": "upbit",
+      "enabled": true,
+      "api_key": "YOUR_UPBIT_ACCESS_KEY",
+      "secret_key": "YOUR_UPBIT_SECRET_KEY",
+      "base_url": "https://api.upbit.com",
+      "ws_url": "wss://api.upbit.com/websocket/v1",
+      "rate_limit_per_second": 10,
+      "maker_fee": 0.0025,
+      "taker_fee": 0.0025,
+      "testnet": false
+    }
+  },
+  "trading": {
+    "pairs": [
+      "BTC/USDT",
+      "ETH/USDT",
+      "BNB/USDT",
+      "ADA/USDT",
+      "SOL/USDT"
+    ],
+    "base_currency": "USDT"
+  },
+  "arbitrage": {
+    "min_profit_threshold": 0.001,
+    "max_position_size": 1000.0,
+    "max_risk_per_trade": 0.02,
+    "min_volume_usd": 10000.0,
+    "execution_timeout_ms": 5000,
+    "price_update_interval_ms": 100,
+    "opportunity_check_interval_ms": 250
+  },
+  "risk_management": {
+    "max_daily_loss": 500.0,
+    "max_open_positions": 5,
+    "position_size_percent": 0.1,
+    "stop_loss_percent": 0.05,
+    "max_slippage_percent": 0.001
+  },
+  "monitoring": {
+    "system_check_interval_sec": 30,
+    "performance_log_interval_sec": 300,
+    "alert_on_high_cpu": true,
+    "alert_on_high_memory": true,
+    "alert_on_network_issues": true,
+    "cpu_threshold_percent": 80.0,
+    "memory_threshold_percent": 85.0,
+    "temperature_threshold_celsius": 70.0
+  },
+  "alerts": {
+    "enabled": true,
+    "telegram": {
+      "enabled": false,
+      "bot_token": "YOUR_TELEGRAM_BOT_TOKEN",
+      "chat_id": "YOUR_TELEGRAM_CHAT_ID"
+    },
+    "discord": {
+      "enabled": false,
+      "webhook_url": "YOUR_DISCORD_WEBHOOK_URL"
+    },
+    "email": {
+      "enabled": false,
+      "smtp_server": "smtp.gmail.com",
+      "smtp_port": 587,
+      "username": "your.email@gmail.com",
+      "password": "your_app_password",
+      "recipient": "alerts@yourdomain.com"
+    }
+  },
+  "database": {
+    "type": "sqlite",
+    "path": "data/ats_v3.db",
+    "backup_interval_hours": 6,
+    "max_backup_files": 7
+  },
+  "logging": {
+    "file_path": "logs/ats_v3.log",
+    "max_file_size_mb": 100,
+    "max_backup_files": 10,
+    "console_output": true,
+    "file_output": true
+  }
+} 
