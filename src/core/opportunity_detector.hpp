@@ -27,6 +27,12 @@ struct ArbitrageOpportunity {
     double profit_absolute;
     double profit_percent;
     
+    // Order book bid/ask prices for spread analysis
+    double buy_bid;             // Best bid price at buy exchange
+    double buy_ask;             // Best ask price at buy exchange
+    double sell_bid;            // Best bid price at sell exchange
+    double sell_ask;            // Best ask price at sell exchange
+    
     double max_volume;          // Maximum tradeable volume
     double estimated_fees;      // Total fees (trading + withdrawal)
     double net_profit_percent;  // Profit after fees
@@ -47,11 +53,12 @@ struct ArbitrageOpportunity {
     bool within_risk_limits;
     
     ArbitrageOpportunity() 
-        : profit_absolute(0.0), profit_percent(0.0), max_volume(0.0),
-          estimated_fees(0.0), net_profit_percent(0.0), timestamp(0),
-          detection_latency_ms(0), buy_liquidity(0.0), sell_liquidity(0.0),
-          spread_stability(0.0), execution_risk(0.0), is_valid(false),
-          has_sufficient_balance(false), meets_min_profit(false),
+        : profit_absolute(0.0), profit_percent(0.0), 
+          buy_bid(0.0), buy_ask(0.0), sell_bid(0.0), sell_ask(0.0),
+          max_volume(0.0), estimated_fees(0.0), net_profit_percent(0.0), 
+          timestamp(0), detection_latency_ms(0), buy_liquidity(0.0), 
+          sell_liquidity(0.0), spread_stability(0.0), execution_risk(0.0), 
+          is_valid(false), has_sufficient_balance(false), meets_min_profit(false),
           within_risk_limits(false) {}
     
     bool IsExecutable() const {

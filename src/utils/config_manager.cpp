@@ -219,4 +219,39 @@ T ConfigManager::GetValue(const std::string& key, const T& default_value) const 
     return default_value;
 }
 
+void ConfigManager::ParseJsonObject(const std::unordered_map<std::string, JsonValue>& obj, const std::string& prefix) {
+    for (const auto& [key, value] : obj) {
+        std::string full_key = prefix.empty() ? key : prefix + "." + key;
+        ParseJsonValue(full_key, value);
+    }
+}
+
+void ConfigManager::ParseJsonValue(const std::string& key, const JsonValue& value) {
+    if (json::IsBool(value)) {
+        SetBool(key, json::AsBool(value));
+    }
+    else if (json::IsInt(value)) {
+        SetInt(key, json::AsInt(value));
+    }
+    else if (json::IsDouble(value)) {
+        SetDouble(key, json::AsDouble(value));
+    }
+    else if (json::IsString(value)) {
+        SetString(key, json::AsString(value));
+    }
+    else if (json::IsObject(value)) {
+        auto obj = json::AsObject(value);
+        ParseJsonObject(obj, key);
+    }
+    else if (json::IsArray(value)) {
+        // Arrays are more complex - for now, skip them
+        // In a production system, we'd need to handle array parsing
+        LOG_WARNING("Array values not yet supported for config key: {}", key);
+    }
+    else if (json::IsNull(value)) {
+        // Skip null values
+        LOG_DEBUG("Null value for config key: {}", key);
+    }
+}
+
 } // namespace ats 

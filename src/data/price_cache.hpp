@@ -205,6 +205,18 @@ public:
         return cache_list_.size();
     }
     
+    // Get all keys in cache
+    std::vector<Key> GetAllKeys() const {
+        std::lock_guard<std::mutex> lock(cache_mutex_);
+        std::vector<Key> keys;
+        keys.reserve(cache_list_.size());
+        
+        for (const auto& entry : cache_list_) {
+            keys.push_back(entry.first);
+        }
+        return keys;
+    }
+    
     double GetHitRate() const {
         long long total = hits_.load() + misses_.load();
         return total > 0 ? static_cast<double>(hits_.load()) / total * 100.0 : 0.0;

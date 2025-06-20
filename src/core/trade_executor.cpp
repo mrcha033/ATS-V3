@@ -345,9 +345,12 @@ void TradeExecutor::MonitoringLoop() {
                 }
             }
             
-            // Cleanup completed/failed trades
-            for (const auto& trade_id : trades_to_cleanup) {
+            // Cleanup completed/failed trades periodically (not per trade)
+            static auto last_cleanup = std::chrono::system_clock::now();
+            auto now_time = std::chrono::system_clock::now();
+            if (now_time - last_cleanup > std::chrono::minutes(5)) { // Cleanup every 5 minutes
                 CleanupCompletedTrades();
+                last_cleanup = now_time;
             }
             
             std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -510,11 +513,36 @@ bool TradeExecutor::ValidateExecution(const ExecutionPlan& plan) {
 bool TradeExecutor::CheckExecutionRisks(const ActiveTrade& trade) {
     // Check if risk manager signals to abort
     if (risk_manager_ && risk_manager_->IsKillSwitchActive()) {
+        LOG_WARNING("Kill switch active - aborting trade {}", trade.plan.trade_id);
         return true;
     }
     
     // Check for stop loss conditions
-    // TODO: Implement stop loss checks
+    if (trade.current_state == TradeState::BUYING || trade.current_state == TradeState::SELLING) {
+        // Check if the opportunity is still profitable
+        double current_profit_percent = 0.0;
+        
+        // Simplified profit check - in production, get real-time prices
+        if (trade.plan.opportunity.buy_price > 0) {
+            current_profit_percent = ((trade.plan.opportunity.sell_price - trade.plan.opportunity.buy_price) 
+                                    / trade.plan.opportunity.buy_price) * 100.0;
+        }
+        
+        // Stop loss threshold: abort if profit dropped below -2%
+        if (current_profit_percent < -2.0) {
+            LOG_WARNING("Stop loss triggered for trade {} - profit: {:.2f}%", 
+                       trade.plan.trade_id, current_profit_percent);
+            return true;
+        }
+        
+        // Also check if profit dropped significantly from original estimate
+        double profit_degradation = trade.plan.opportunity.profit_percent - current_profit_percent;
+        if (profit_degradation > 5.0) { // 5% degradation threshold
+            LOG_WARNING("Profit degradation detected for trade {} - degradation: {:.2f}%",
+                       trade.plan.trade_id, profit_degradation);
+            return true;
+        }
+    }
     
     return false;
 }
@@ -590,7 +618,43 @@ double TradeExecutor::CalculateFees(const Order& order, ExchangeInterface* excha
 }
 
 void TradeExecutor::CleanupCompletedTrades() {
-    // TODO: Implement cleanup of old completed trades
+    auto now = std::chrono::system_clock::now();
+    auto cleanup_threshold = now - std::chrono::hours(1); // Keep completed trades for 1 hour
+    
+    std::lock_guard<std::mutex> lock(active_trades_mutex_);
+    
+    auto it = active_trades_.begin();
+    while (it != active_trades_.end()) {
+        const auto& trade = it->second;
+        
+        // Check if trade is completed and old enough to cleanup
+        bool should_cleanup = false;
+        
+        if (trade.current_state == TradeState::COMPLETED || 
+            trade.current_state == TradeState::FAILED || 
+            trade.current_state == TradeState::CANCELLED) {
+            
+            if (trade.last_update < cleanup_threshold) {
+                should_cleanup = true;
+            }
+        }
+        
+        // Also cleanup trades that have been stuck for too long
+        auto trade_age = now - trade.start_time;
+        if (trade_age > std::chrono::hours(6)) { // 6 hour timeout
+            should_cleanup = true;
+            LOG_WARNING("Cleaning up stuck trade: {} (age: {} hours)", 
+                       it->first, 
+                       std::chrono::duration_cast<std::chrono::hours>(trade_age).count());
+        }
+        
+        if (should_cleanup) {
+            LOG_DEBUG("Cleaning up completed trade: {}", it->first);
+            it = active_trades_.erase(it);
+        } else {
+            ++it;
+        }
+    }
 }
 
 std::vector<ExecutionResult> TradeExecutor::GetExecutionHistory(size_t count) const {

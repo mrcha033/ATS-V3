@@ -481,25 +481,7 @@ std::string RestClient::GetLastError() const {
     return last_error_;
 }
 
-void RestClient::UpdateStatistics(const HttpResponse& response) {
-    std::lock_guard<std::mutex> lock(stats_mutex_);
-    
-    total_requests_++;
-    
-    if (response.IsSuccess()) {
-        successful_requests_++;
-    } else {
-        failed_requests_++;
-    }
-    
-    // Update average response time
-    if (total_requests_ == 1) {
-        average_response_time_ms_ = response.response_time_ms;
-    } else {
-        average_response_time_ms_ = (average_response_time_ms_ * (total_requests_ - 1) + 
-                                   response.response_time_ms) / total_requests_;
-    }
-}
+
 
 // RestClientManager implementation
 std::unique_ptr<RestClient> RestClientManager::instance_ = nullptr;

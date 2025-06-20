@@ -246,6 +246,13 @@ ArbitrageOpportunity OpportunityDetector::EvaluateOpportunity(const std::string&
         
         opportunity.buy_price = buy_price.ask;
         opportunity.sell_price = sell_price.bid;
+        
+        // Set bid/ask prices for spread analysis
+        opportunity.buy_bid = buy_price.bid;
+        opportunity.buy_ask = buy_price.ask;
+        opportunity.sell_bid = sell_price.bid;
+        opportunity.sell_ask = sell_price.ask;
+        
         opportunity.profit_absolute = opportunity.sell_price - opportunity.buy_price;
         opportunity.profit_percent = (opportunity.profit_absolute / opportunity.buy_price) * 100.0;
         

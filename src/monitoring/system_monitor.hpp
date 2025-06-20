@@ -4,6 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <mutex>
+#include <vector>
 
 namespace ats {
 
@@ -37,6 +38,10 @@ private:
     double memory_threshold_;
     double temperature_threshold_;
     
+    // Metrics history
+    std::vector<SystemStats> metrics_history_;
+    mutable std::mutex history_mutex_;
+    
 public:
     SystemMonitor();
     ~SystemMonitor();
@@ -63,6 +68,18 @@ public:
     // Logging
     void LogSystemStats() const;
     void LogSystemInfo() const;
+    
+    // History access
+    std::vector<SystemStats> GetMetricsHistory(size_t count = 100) const {
+        std::lock_guard<std::mutex> lock(history_mutex_);
+        if (metrics_history_.size() <= count) {
+            return metrics_history_;
+        }
+        return std::vector<SystemStats>(
+            metrics_history_.end() - count, 
+            metrics_history_.end()
+        );
+    }
     
 private:
     void MonitorLoop();

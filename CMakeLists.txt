@@ -38,6 +38,7 @@ set(SOURCES
     # Utilities (Phase 1)
     src/utils/logger.cpp
     src/utils/config_manager.cpp
+    src/utils/json_parser.cpp
     
     # Network layer (Phase 2)
     src/network/rest_client.cpp

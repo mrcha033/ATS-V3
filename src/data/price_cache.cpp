@@ -1,6 +1,7 @@
 #include "price_cache.hpp"
 #include "../utils/logger.hpp"
 #include <thread>
+#include <set>
 
 namespace ats {
 
@@ -74,21 +75,52 @@ bool PriceCache::IsOrderBookStale(const std::string& exchange, const std::string
 }
 
 std::vector<Price> PriceCache::GetAllPrices(const std::string& symbol) {
-    // TODO: Implement iteration through cache to find all prices for symbol
     std::vector<Price> prices;
+    
+    // Get all exchanges that have this symbol cached
+    std::vector<std::string> exchanges = GetCachedExchanges();
+    
+    for (const auto& exchange : exchanges) {
+        std::string key = MakeKey(exchange, symbol);
+        Price price;
+        if (price_cache_.GetConst(key, price)) {
+            prices.push_back(price);
+        }
+    }
+    
     return prices;
 }
 
 std::vector<std::string> PriceCache::GetCachedSymbols() const {
-    // TODO: Implement symbol extraction from cache keys
-    std::vector<std::string> symbols;
-    return symbols;
+    std::set<std::string> unique_symbols;
+    
+    // Extract symbols from all cache keys
+    auto keys = price_cache_.GetAllKeys();
+    for (const auto& key : keys) {
+        size_t colon_pos = key.find(':');
+        if (colon_pos != std::string::npos && colon_pos + 1 < key.length()) {
+            std::string symbol = key.substr(colon_pos + 1);
+            unique_symbols.insert(symbol);
+        }
+    }
+    
+    return std::vector<std::string>(unique_symbols.begin(), unique_symbols.end());
 }
 
 std::vector<std::string> PriceCache::GetCachedExchanges() const {
-    // TODO: Implement exchange extraction from cache keys  
-    std::vector<std::string> exchanges;
-    return exchanges;
+    std::set<std::string> unique_exchanges;
+    
+    // Extract exchanges from all cache keys
+    auto keys = price_cache_.GetAllKeys();
+    for (const auto& key : keys) {
+        size_t colon_pos = key.find(':');
+        if (colon_pos != std::string::npos) {
+            std::string exchange = key.substr(0, colon_pos);
+            unique_exchanges.insert(exchange);
+        }
+    }
+    
+    return std::vector<std::string>(unique_exchanges.begin(), unique_exchanges.end());
 }
 
 void PriceCache::ClearAll() {
@@ -98,12 +130,48 @@ void PriceCache::ClearAll() {
 }
 
 void PriceCache::ClearExchange(const std::string& exchange) {
-    // TODO: Implement selective clearing by exchange prefix
+    std::string prefix = exchange + ":";
+    
+    // Get all keys and remove those starting with the exchange prefix
+    auto keys = price_cache_.GetAllKeys();
+    for (const auto& key : keys) {
+        if (key.substr(0, prefix.length()) == prefix) {
+            price_cache_.Remove(key);
+        }
+    }
+    
+    // Also clear orderbook cache for this exchange
+    auto orderbook_keys = orderbook_cache_.GetAllKeys();
+    for (const auto& key : orderbook_keys) {
+        if (key.substr(0, prefix.length()) == prefix) {
+            orderbook_cache_.Remove(key);
+        }
+    }
+    
     LOG_INFO("Cleared cache for exchange: {}", exchange);
 }
 
 void PriceCache::ClearSymbol(const std::string& symbol) {
-    // TODO: Implement selective clearing by symbol suffix
+    std::string suffix = ":" + symbol;
+    
+    // Get all keys and remove those ending with the symbol suffix
+    auto keys = price_cache_.GetAllKeys();
+    for (const auto& key : keys) {
+        if (key.length() >= suffix.length() && 
+            key.substr(key.length() - suffix.length()) == suffix) {
+            price_cache_.Remove(key);
+        }
+    }
+    
+    // Also clear orderbook cache for this symbol
+    auto orderbook_keys = orderbook_cache_.GetAllKeys();
+    for (const auto& key : orderbook_keys) {
+        if (key.length() >= suffix.length() && 
+            key.substr(key.length() - suffix.length()) == suffix) {
+            orderbook_cache_.Remove(key);
+        }
+    }
+    
     LOG_INFO("Cleared cache for symbol: {}", symbol);
 }
 
