@@ -203,8 +203,24 @@ ExecutionPlan TradeExecutor::CreateExecutionPlan(const ArbitrageOpportunity& opp
 }
 
 bool TradeExecutor::IsHealthy() const {
-    return running_.load() && 
-           !active_trades_.empty() ? true : true; // Always healthy for now
+    if (!running_.load()) {
+        return false; // Not healthy if not running
+    }
+    
+    // Check if exchanges are available
+    {
+        std::lock_guard<std::mutex> lock(exchanges_mutex_);
+        if (exchanges_.empty()) {
+            return false; // Not healthy without exchanges
+        }
+    }
+    
+    // Check if success rate is reasonable (if we have executed trades)
+    if (trades_executed_.load() > 10 && GetSuccessRate() < 10.0) {
+        return false; // Not healthy with very low success rate
+    }
+    
+    return true; // Healthy if running, has exchanges, and reasonable performance
 }
 
 std::string TradeExecutor::GetStatus() const {

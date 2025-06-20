@@ -370,7 +370,25 @@ bool RiskManager::IsLiquidityAcceptable(const ArbitrageOpportunity& opportunity)
 }
 
 bool RiskManager::IsSpreadAcceptable(const ArbitrageOpportunity& opportunity) const {
-    return opportunity.profit_percent <= limits_.max_spread_threshold;
+    // Calculate actual spread percentage for both exchanges
+    double buy_spread_percent = 0.0;
+    double sell_spread_percent = 0.0;
+    
+    // Calculate buy exchange spread (ask - bid) / mid-price
+    if (opportunity.buy_ask > 0 && opportunity.buy_bid > 0) {
+        double mid_price = (opportunity.buy_ask + opportunity.buy_bid) / 2.0;
+        buy_spread_percent = ((opportunity.buy_ask - opportunity.buy_bid) / mid_price) * 100.0;
+    }
+    
+    // Calculate sell exchange spread (ask - bid) / mid-price  
+    if (opportunity.sell_ask > 0 && opportunity.sell_bid > 0) {
+        double mid_price = (opportunity.sell_ask + opportunity.sell_bid) / 2.0;
+        sell_spread_percent = ((opportunity.sell_ask - opportunity.sell_bid) / mid_price) * 100.0;
+    }
+    
+    // Check if both spreads are within acceptable limits
+    return (buy_spread_percent <= limits_.max_spread_threshold && 
+            sell_spread_percent <= limits_.max_spread_threshold);
 }
 
 double RiskManager::CalculateVaR(double confidence_level) const {
@@ -479,6 +497,108 @@ void RiskManager::PerformWeeklyReset() {
 void RiskManager::PerformMonthlyReset() {
     monthly_pnl_ = 0.0;
     // TODO: Implement monthly cleanup
+}
+
+// Private helper method implementations
+void RiskManager::CleanupOldTrades() {
+    std::lock_guard<std::mutex> lock(trades_mutex_);
+    
+    auto now = std::chrono::system_clock::now();
+    auto cutoff = now - std::chrono::hours(24 * 30); // Keep trades for 30 days
+    
+    trade_history_.erase(
+        std::remove_if(trade_history_.begin(), trade_history_.end(),
+            [cutoff](const TradeRecord& trade) {
+                return trade.start_time < cutoff;
+            }),
+        trade_history_.end()
+    );
+    
+    // Limit maximum history size
+    if (trade_history_.size() > max_trade_history_) {
+        trade_history_.erase(trade_history_.begin(), 
+                           trade_history_.begin() + (trade_history_.size() - max_trade_history_));
+    }
+}
+
+void RiskManager::CleanupOldRateData() {
+    std::lock_guard<std::mutex> lock(rate_tracker_.mutex);
+    
+    auto now = std::chrono::system_clock::now();
+    auto cutoff = now - std::chrono::hours(24); // Keep rate data for 24 hours
+    
+    rate_tracker_.trade_times.erase(
+        std::remove_if(rate_tracker_.trade_times.begin(), rate_tracker_.trade_times.end(),
+            [cutoff](const std::chrono::system_clock::time_point& time) {
+                return time < cutoff;
+            }),
+        rate_tracker_.trade_times.end()
+    );
+    
+    // Limit maximum size
+    if (rate_tracker_.trade_times.size() > rate_tracker_.max_size) {
+        rate_tracker_.trade_times.erase(
+            rate_tracker_.trade_times.begin(),
+            rate_tracker_.trade_times.begin() + (rate_tracker_.trade_times.size() - rate_tracker_.max_size)
+        );
+    }
+}
+
+double RiskManager::CalculateRewardRiskRatio(const ArbitrageOpportunity& opportunity, double volume) const {
+    if (volume <= 0.0) return 0.0;
+    
+    // Calculate potential reward (net profit)
+    double potential_reward = opportunity.net_profit_percent * volume / 100.0;
+    
+    // Calculate potential risk (maximum loss)
+    double potential_risk = volume * limits_.max_risk_per_trade;
+    
+    // Consider execution risk and slippage
+    double execution_risk = volume * 0.001; // 0.1% execution risk
+    double total_risk = potential_risk + execution_risk;
+    
+    if (total_risk <= 0.0) return 0.0;
+    
+    return potential_reward / total_risk;
+}
+
+bool RiskManager::IsSameDay(const std::chrono::system_clock::time_point& time1,
+                           const std::chrono::system_clock::time_point& time2) const {
+    auto tt1 = std::chrono::system_clock::to_time_t(time1);
+    auto tt2 = std::chrono::system_clock::to_time_t(time2);
+    
+    std::tm tm1 = *std::gmtime(&tt1);
+    std::tm tm2 = *std::gmtime(&tt2);
+    
+    return (tm1.tm_year == tm2.tm_year && 
+            tm1.tm_yday == tm2.tm_yday);
+}
+
+bool RiskManager::IsSameWeek(const std::chrono::system_clock::time_point& time1,
+                            const std::chrono::system_clock::time_point& time2) const {
+    auto tt1 = std::chrono::system_clock::to_time_t(time1);
+    auto tt2 = std::chrono::system_clock::to_time_t(time2);
+    
+    std::tm tm1 = *std::gmtime(&tt1);
+    std::tm tm2 = *std::gmtime(&tt2);
+    
+    // Calculate week number
+    int week1 = tm1.tm_yday / 7;
+    int week2 = tm2.tm_yday / 7;
+    
+    return (tm1.tm_year == tm2.tm_year && week1 == week2);
+}
+
+bool RiskManager::IsSameMonth(const std::chrono::system_clock::time_point& time1,
+                             const std::chrono::system_clock::time_point& time2) const {
+    auto tt1 = std::chrono::system_clock::to_time_t(time1);
+    auto tt2 = std::chrono::system_clock::to_time_t(time2);
+    
+    std::tm tm1 = *std::gmtime(&tt1);
+    std::tm tm2 = *std::gmtime(&tt2);
+    
+    return (tm1.tm_year == tm2.tm_year && 
+            tm1.tm_mon == tm2.tm_mon);
 }
 
 } // namespace ats 

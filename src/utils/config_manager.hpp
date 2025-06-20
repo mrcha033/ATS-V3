@@ -5,6 +5,12 @@
 #include <variant>
 #include <vector>
 
+// Forward declaration
+namespace ats {
+    using JsonValue = std::variant<std::nullptr_t, bool, int, double, std::string, 
+                                  std::vector<JsonValue>, std::unordered_map<std::string, JsonValue>>;
+}
+
 namespace ats {
 
 using ConfigValue = std::variant<std::string, int, double, bool>;
@@ -64,6 +70,10 @@ public:
 private:
     bool ParseJson(const std::string& json_content);
     std::string ToJson() const;
+    
+    // JSON parsing helpers
+    void ParseJsonObject(const std::unordered_map<std::string, JsonValue>& obj, const std::string& prefix);
+    void ParseJsonValue(const std::string& key, const JsonValue& value);
     
     template<typename T>
     T GetValue(const std::string& key, const T& default_value) const;

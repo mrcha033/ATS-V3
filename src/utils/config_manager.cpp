@@ -1,8 +1,10 @@
 #include "config_manager.hpp"
+#include "json_parser.hpp"
 #include "logger.hpp"
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <cctype>
 
 namespace ats {
 
@@ -150,43 +152,38 @@ double ConfigManager::GetMaxRiskPerTrade() const {
 }
 
 bool ConfigManager::ParseJson(const std::string& json_content) {
-    // Simple JSON parser - for production, use nlohmann/json or similar
-    // This is a basic implementation for initial setup
-    
     try {
-        // For now, set some default values
+        // Set defaults first
         SetString("app.name", "ATS V3");
         SetString("app.version", "1.0.0");
         SetBool("app.debug", false);
         
-        // Binance defaults
-        SetString("binance.name", "binance");
-        SetString("binance.base_url", "https://api.binance.com");
-        SetString("binance.ws_url", "wss://stream.binance.com:9443/ws");
-        SetBool("binance.enabled", true);
-        SetInt("binance.rate_limit", 10);
-        SetDouble("binance.maker_fee", 0.001);
-        SetDouble("binance.taker_fee", 0.001);
+        if (json_content.empty()) {
+            LOG_WARNING("Empty JSON content, using default configuration");
+            return true;
+        }
         
-        // Upbit defaults
-        SetString("upbit.name", "upbit");
-        SetString("upbit.base_url", "https://api.upbit.com");
-        SetString("upbit.ws_url", "wss://api.upbit.com/websocket/v1");
-        SetBool("upbit.enabled", true);
-        SetInt("upbit.rate_limit", 10);
-        SetDouble("upbit.maker_fee", 0.0025);
-        SetDouble("upbit.taker_fee", 0.0025);
+        // Use proper JSON parser
+        JsonValue root = JsonParser::ParseString(json_content);
         
-        // Arbitrage settings
-        SetDouble("arbitrage.min_profit_threshold", 0.001);
-        SetDouble("arbitrage.max_position_size", 1000.0);
-        SetDouble("arbitrage.max_risk_per_trade", 0.02);
+        if (!json::IsObject(root)) {
+            LOG_ERROR("JSON root is not an object");
+            return false;
+        }
         
-        LOG_INFO("Configuration loaded successfully");
+        auto rootObj = json::AsObject(root);
+        ParseJsonObject(rootObj, "");
+        
+        LOG_INFO("Configuration parsed successfully from JSON");
         return true;
         
+    } catch (const JsonParseError& e) {
+        LOG_ERROR("JSON parse error: {}", e.what());
+        LOG_WARNING("Using default configuration values");
+        return false;
     } catch (const std::exception& e) {
         LOG_ERROR("Failed to parse JSON config: {}", e.what());
+        LOG_WARNING("Using default configuration values");
         return false;
     }
 }

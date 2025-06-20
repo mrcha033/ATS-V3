@@ -2,6 +2,7 @@
 #include "../utils/logger.hpp"
 #include <chrono>
 #include <thread>
+#include <sstream>
 
 namespace ats {
 
@@ -273,6 +274,27 @@ void RestClient::UpdateStatistics(const HttpResponse& response) {
     // Update average response time (simple moving average)
     average_response_time_ms_ = ((average_response_time_ms_ * (total_requests_ - 1)) + 
                                 response.response_time_ms) / total_requests_;
+}
+
+std::string RestClient::BuildQueryString(const std::unordered_map<std::string, std::string>& params) {
+    if (params.empty()) {
+        return "";
+    }
+    
+    std::ostringstream query;
+    bool first = true;
+    
+    for (const auto& param : params) {
+        if (!first) {
+            query << "&";
+        }
+        
+        // URL encode the key and value
+        query << param.first << "=" << param.second;
+        first = false;
+    }
+    
+    return query.str();
 }
 
 // Statistics getters

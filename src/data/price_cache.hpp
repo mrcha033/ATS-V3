@@ -5,6 +5,7 @@
 #include <mutex>
 #include <chrono>
 #include <atomic>
+#include <condition_variable>
 #include "../exchange/exchange_interface.hpp"
 
 namespace ats {
@@ -106,6 +107,20 @@ public:
         
         value = it->second->second.data;
         hits_++;
+        return true;
+    }
+    
+    // Const version that doesn't update access info (for checking staleness)
+    bool GetConst(const Key& key, Value& value) const {
+        std::lock_guard<std::mutex> lock(cache_mutex_);
+        
+        auto it = cache_map_.find(key);
+        if (it == cache_map_.end()) {
+            misses_++;
+            return false;
+        }
+        
+        value = it->second->second.data;
         return true;
     }
     
@@ -219,6 +234,8 @@ private:
     // Automatic cleanup
     std::thread cleanup_thread_;
     std::atomic<bool> running_;
+    std::condition_variable cleanup_cv_;
+    std::mutex cleanup_mutex_;
     
 public:
     PriceCache(size_t max_prices = 1000, size_t max_orderbooks = 100);

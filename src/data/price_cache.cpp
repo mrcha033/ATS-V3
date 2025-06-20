@@ -17,6 +17,7 @@ PriceCache::PriceCache(size_t max_prices, size_t max_orderbooks)
 
 PriceCache::~PriceCache() {
     running_ = false;
+    cleanup_cv_.notify_all(); // Wake up cleanup thread immediately
     if (cleanup_thread_.joinable()) {
         cleanup_thread_.join();
     }
@@ -36,7 +37,7 @@ bool PriceCache::IsPriceStale(const std::string& exchange, const std::string& sy
                              std::chrono::seconds max_age) const {
     std::string key = MakeKey(exchange, symbol);
     Price price;
-    if (!const_cast<PriceCache*>(this)->price_cache_.Get(key, price)) {
+    if (!price_cache_.GetConst(key, price)) {
         return true; // No price data is considered stale
     }
     
@@ -61,7 +62,7 @@ bool PriceCache::IsOrderBookStale(const std::string& exchange, const std::string
                                  std::chrono::seconds max_age) const {
     std::string key = MakeKey(exchange, symbol);
     OrderBook orderbook;
-    if (!const_cast<PriceCache*>(this)->orderbook_cache_.Get(key, orderbook)) {
+    if (!orderbook_cache_.GetConst(key, orderbook)) {
         return true; // No orderbook data is considered stale
     }
     
@@ -134,7 +135,9 @@ std::string PriceCache::MakeKey(const std::string& exchange, const std::string& 
 
 void PriceCache::CleanupLoop() {
     while (running_) {
-        std::this_thread::sleep_for(std::chrono::seconds(30));
+        // Use condition variable to allow fast shutdown
+        std::unique_lock<std::mutex> lock(cleanup_mutex_);
+        cleanup_cv_.wait_for(lock, std::chrono::seconds(30), [this] { return !running_; });
         
         if (!running_) break;
         
