@@ -74,7 +74,7 @@ private:
 // Multi-exchange rate limiter manager
 class RateLimiterManager {
 private:
-    std::unordered_map<std::string, std::unique_ptr<RateLimiter>> limiters_;
+    std::unordered_map<std::string, std::shared_ptr<RateLimiter>> limiters_;
     mutable std::mutex limiters_mutex_;
     
 public:

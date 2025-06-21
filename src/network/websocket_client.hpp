@@ -169,6 +169,7 @@ private:
 class WebSocketManager {
 private:
     std::unordered_map<std::string, std::unique_ptr<WebSocketClient>> clients_;
+    std::unordered_map<std::string, std::string> client_urls_; // Store URL for each client
     mutable std::mutex clients_mutex_;
     
     // Shared message handler

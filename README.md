@@ -1,25 +1,6 @@
 # ATS V3 - Raspberry Pi Arbitrage Trading System
 
-A high-performance, automated arbitrage trading system optimized for Raspberry Pi deployment, now with full Windows/MSVC compatibility.
-
-## ✅ **Current Status - FULLY FUNCTIONAL & PRODUCTION READY**
-
-**🎉 Major Milestone Achieved: Complete Implementation & Compilation Success**
-
-- ✅ **Zero Compilation Errors** - All template, include, and type issues resolved
-- ✅ **Zero Linker Errors** - Complete implementation with full functionality
-- ✅ **Windows/MSVC Compatible** - Successfully builds on Windows with Visual Studio 2022
-- ✅ **Cross-Platform Ready** - Maintains Raspberry Pi optimization while supporting Windows development
-- ✅ **All Components Implemented** - Foundation, Data Collection, Arbitrage Engine, and Monitoring complete
-- ✅ **Production Quality** - Full JSON parsing, system monitoring, and network client implementations
-
-**Latest Improvements (December 2024):**
-- ✅ **Complete JSON Parser**: Full std::variant-based implementation with comprehensive error handling
-- ✅ **System Monitor**: Windows API integration with CPU, memory, and performance monitoring  
-- ✅ **REST Client**: Enhanced implementation with statistics tracking and error recovery
-- ✅ **WebSocket Client**: Production-ready implementation with threading and reconnection logic
-- ✅ **Type Safety**: Centralized type definitions eliminating all compilation conflicts
-- ✅ **Memory Safety**: Proper atomic variable handling and thread-safe implementations
+A high-performance, automated arbitrage trading system optimized for Raspberry Pi deployment with cross-platform development support.
 
 ## 🚀 **Features**
 
@@ -31,7 +12,6 @@ A high-performance, automated arbitrage trading system optimized for Raspberry P
 - **Cross-Platform Development**: Full Windows MSVC and Linux GCC support
 - **Production Ready**: systemd service, health checks, and comprehensive logging
 - **Monitoring & Alerts**: System resource monitoring with alert capabilities
-- **Conditional Dependencies**: Builds successfully with or without external libraries
 
 ## 📋 **System Requirements**
 
@@ -47,350 +27,304 @@ A high-performance, automated arbitrage trading system optimized for Raspberry P
 - **Visual Studio 2022** (recommended for Windows development)
 - **Optional**: CURL, WebSocket libraries (includes complete implementations if unavailable)
 
-## 🔧 **Installation**
+## 🔧 **Quick Start**
 
-### **Windows Development Build**
+### **1. Clone and Build**
 
+#### **Windows Development**
 ```powershell
 # Clone repository
-git clone <your-repo-url> ats_v3
-cd ats_v3
+git clone https://github.com/yourusername/ats-v3.git
+cd ats-v3
 
 # Create build directory
 mkdir build
 cd build
 
-# CMake configuration (Visual Studio 2022)
+# Configure with CMake
 cmake .. -G "Visual Studio 17 2022" -A x64
 
-# Build with Visual Studio
+# Build
 cmake --build . --config Release
 
-# Run executable
+# Run
 .\Release\ATS_V3.exe
 ```
 
-### **Alternative Windows Build (Ninja)**
-
-```powershell
-# Using Developer Command Prompt for VS 2022
-cmake .. -G "Ninja" -DCMAKE_BUILD_TYPE=Release
-cmake --build .
-
-# Run executable
-.\ATS_V3.exe
-```
-
-### **Raspberry Pi Production Build**
-
+#### **Linux/Raspberry Pi**
 ```bash
-# Ubuntu/Debian dependencies
+# Install dependencies
 sudo apt update
 sudo apt install -y build-essential cmake git libcurl4-openssl-dev libsqlite3-dev pkg-config
 
-# Additional packages for development
-sudo apt install -y gdb valgrind tree
-
 # Clone and build
-git clone <your-repo-url> ats_v3
-cd ats_v3
+git clone https://github.com/yourusername/ats-v3.git
+cd ats-v3
 
-# Build for Raspberry Pi (auto-detects ARM)
-chmod +x scripts/build_rpi.sh
-./scripts/build_rpi.sh Release
+# Build
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j4
 
-# Build and install system-wide
-./scripts/build_rpi.sh Release install
+# Run
+./ATS_V3
 ```
 
-### **Configuration**
+### **2. Configuration Setup**
 
+#### **Create Configuration File**
 ```bash
-# Copy and edit configuration
-cp config/settings.json config/settings_local.json
-nano config/settings_local.json
+# Copy example configuration
+cp config/settings.json.example config/settings.json
 
-# Add your exchange API keys:
-# - Binance API key and secret
-# - Upbit access key and secret
+# Edit configuration
+nano config/settings.json  # Linux
+notepad config/settings.json  # Windows
 ```
 
-### **Run**
+#### **Exchange API Setup**
 
-```bash
-# Run directly
-./build/ATS_V3
+**Binance API Setup:**
+1. Go to [Binance API Management](https://www.binance.com/en/my/settings/api-management)
+2. Create new API key
+3. Enable "Enable Spot & Margin Trading"
+4. Add your IP address to whitelist (optional but recommended)
+5. Copy API Key and Secret Key
 
-# Or as systemd service (if installed)
-sudo systemctl start ats-v3
-sudo systemctl enable ats-v3  # Auto-start on boot
-```
+**Upbit API Setup:**
+1. Go to [Upbit API Management](https://upbit.com/mypage/open_api_management)
+2. Create new API key
+3. Enable "View" and "Trading" permissions
+4. Copy Access Key and Secret Key
 
-## 📁 **Project Structure**
-
-```
-ats_v3/
-├── src/                        # Source code
-│   ├── main.cpp               # Application entry point ✅
-│   ├── core/                  # Core arbitrage engine ✅
-│   │   ├── types.hpp          # Common type definitions ✅
-│   │   ├── arbitrage_engine.hpp/cpp ✅
-│   │   ├── price_monitor.hpp/cpp ✅
-│   │   ├── opportunity_detector.hpp/cpp ✅
-│   │   ├── trade_executor.hpp/cpp ✅
-│   │   ├── risk_manager.hpp/cpp ✅
-│   │   └── portfolio_manager.hpp/cpp ✅
-│   ├── exchange/              # Exchange implementations ✅
-│   │   ├── exchange_interface.hpp/cpp ✅
-│   │   └── [future: binance.cpp/hpp, upbit.cpp/hpp]
-│   ├── network/               # Network and API clients ✅
-│   │   ├── websocket_client.hpp/cpp ✅
-│   │   ├── rest_client.hpp/cpp ✅
-│   │   └── rate_limiter.hpp/cpp ✅
-│   ├── data/                  # Data structures and storage ✅
-│   │   ├── market_data.hpp/cpp ✅
-│   │   └── price_cache.hpp/cpp ✅
-│   ├── utils/                 # Utilities (logging, config, JSON) ✅
-│   │   ├── logger.hpp/cpp ✅
-│   │   ├── config_manager.hpp/cpp ✅
-│   │   └── json_parser.hpp/cpp ✅
-│   └── monitoring/            # System monitoring ✅
-│       ├── system_monitor.hpp/cpp ✅
-│       └── health_check.hpp/cpp ✅
-├── config/                    # Configuration files
-│   └── settings.json         # Main configuration ✅
-├── scripts/                   # Build and deployment scripts
-│   └── build_rpi.sh          # Raspberry Pi build script ✅
-├── systemd/                   # System service configuration
-│   └── ats-v3.service        # systemd service file ✅
-├── build/                     # Build output (gitignored)
-├── CMakeLists.txt            # Build configuration ✅
-├── .gitignore                # Comprehensive gitignore ✅
-└── README.md                 # This file ✅
-```
-
-## 🛠️ **Development Status**
-
-### **Completed Phases**
-- ✅ **Phase 1: Foundation** - Project structure, build system, logging, configuration
-- ✅ **Phase 2: Data Collection** - REST/WebSocket clients, price caching, connection management  
-- ✅ **Phase 3: Arbitrage Engine** - Price monitoring, opportunity detection, risk management
-- ✅ **Phase 4: Core Implementation** - Complete JSON parsing, system monitoring, network clients
-
-### **Technical Implementation Details**
-- ✅ **Centralized Type System**: `src/core/types.hpp` with std::variant-based JsonValue
-- ✅ **Complete JSON Parser**: Full RFC-compliant JSON parsing with error handling
-- ✅ **System Monitoring**: Windows API integration with performance counters
-- ✅ **WebSocket Implementation**: Production-ready with threading and auto-reconnection
-- ✅ **REST Client**: CURL integration with fallback stubs and statistics tracking
-- ✅ **Memory Management**: Thread-safe implementations with proper atomic handling
-- ✅ **Cross-Platform**: Conditional compilation for Windows/Linux compatibility
-
-### **Compilation Success Details**
-- ✅ **Zero Errors**: Clean compilation on MSVC 2022 and GCC 10+
-- ✅ **Type Safety**: Eliminated all type conflicts and circular dependencies
-- ✅ **Thread Safety**: Proper mutex usage and atomic variable handling
-- ✅ **Memory Safety**: RAII patterns and smart pointer usage throughout
-- ✅ **Exception Safety**: Comprehensive error handling and resource cleanup
-- ✅ **Performance**: Optimized for both development debugging and production speed
-
-### **Next Steps (Future Development)**
-- **Phase 5: Exchange Integration** - Real Binance/Upbit API implementations
-- **Phase 6: Advanced Features** - Machine learning price prediction, advanced risk models
-- **Phase 7: Production Deployment** - Automated deployment, monitoring dashboards
-
-## ⚙️ **Configuration**
-
-### **API Keys**
-Edit `config/settings.json` with your exchange credentials:
-
+#### **Update Configuration**
 ```json
 {
   "exchanges": {
     "binance": {
-      "api_key": "YOUR_BINANCE_API_KEY",
-      "secret_key": "YOUR_BINANCE_SECRET_KEY",
-      "enabled": true
+      "name": "binance",
+      "enabled": true,
+      "api_key": "your_binance_api_key_here",
+      "secret_key": "your_binance_secret_key_here",
+      "base_url": "https://api.binance.com",
+      "testnet": false
     },
     "upbit": {
-      "api_key": "YOUR_UPBIT_ACCESS_KEY", 
-      "secret_key": "YOUR_UPBIT_SECRET_KEY",
-      "enabled": true
+      "name": "upbit",
+      "enabled": true,
+      "api_key": "your_upbit_access_key_here",
+      "secret_key": "your_upbit_secret_key_here",
+      "base_url": "https://api.upbit.com",
+      "testnet": false
+    }
+  },
+  "trading": {
+    "pairs": [
+      "BTC/USDT",
+      "ETH/USDT",
+      "BNB/USDT"
+    ],
+    "base_currency": "USDT"
+  },
+  "arbitrage": {
+    "min_profit_threshold": 0.5,
+    "max_position_size": 1000.0,
+    "max_risk_per_trade": 0.02
+  },
+  "risk_management": {
+    "max_daily_loss": 500.0,
+    "max_open_positions": 5,
+    "position_size_percent": 0.1
+  }
+}
+```
+
+### **3. Asset Allocation Strategy**
+
+**Recommended Asset Distribution:**
+
+```
+Total Investment: $10,000
+
+Binance (50% = $5,000):
+├── USDT: $3,500 (70%) - For buying opportunities
+├── BTC: $750 (15%) - For selling opportunities
+└── ETH: $750 (15%) - For selling opportunities
+
+Upbit (50% = $5,000):
+├── KRW: ₩4,200,000 (70%) - For buying opportunities
+├── BTC: ₩900,000 (15%) - For selling opportunities
+└── ETH: ₩900,000 (15%) - For selling opportunities
+```
+
+**Why This Distribution:**
+- **70% stable currency** (USDT/KRW) for immediate buying power
+- **30% major coins** (BTC/ETH) for immediate selling opportunities
+- **Balanced across exchanges** for bidirectional arbitrage
+
+### **4. Running the System**
+
+#### **Development Mode**
+```bash
+# Run with debug logging
+./ATS_V3 --debug --log-level=DEBUG
+
+# Run with specific config file
+./ATS_V3 --config=config/my_settings.json
+```
+
+#### **Production Mode (Linux/Raspberry Pi)**
+```bash
+# Install as system service
+sudo cp systemd/ats-v3.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable ats-v3
+sudo systemctl start ats-v3
+
+# Check status
+sudo systemctl status ats-v3
+
+# View logs
+sudo journalctl -u ats-v3 -f
+```
+
+## 🔒 **Security Best Practices**
+
+### **API Key Security**
+```bash
+# Set restrictive permissions on config file
+chmod 600 config/settings.json
+
+# Use environment variables (optional)
+export BINANCE_API_KEY="your_key_here"
+export BINANCE_SECRET_KEY="your_secret_here"
+export UPBIT_ACCESS_KEY="your_key_here"
+export UPBIT_SECRET_KEY="your_secret_here"
+```
+
+### **Network Security**
+- **Use VPN** for remote access to Raspberry Pi
+- **Enable firewall** and close unnecessary ports
+- **Regular security updates** for the operating system
+- **Monitor API key usage** for suspicious activity
+
+### **Risk Management**
+- **Start with small amounts** ($100-$1000) for testing
+- **Set conservative profit thresholds** (0.5% minimum)
+- **Monitor daily loss limits** closely
+- **Keep manual override** capability
+
+## 📊 **Monitoring and Alerts**
+
+### **Real-time Monitoring**
+```bash
+# View system resources
+htop
+
+# Monitor log files
+tail -f logs/ats_v3.log
+
+# Check network connections
+netstat -tlnp | grep ATS_V3
+```
+
+### **Alert Configuration**
+```json
+{
+  "alerts": {
+    "enabled": true,
+    "telegram": {
+      "enabled": true,
+      "bot_token": "your_telegram_bot_token",
+      "chat_id": "your_telegram_chat_id"
+    },
+    "discord": {
+      "enabled": false,
+      "webhook_url": "your_discord_webhook_url"
     }
   }
 }
 ```
 
-### **Trading Parameters**
-Adjust arbitrage settings:
+## 🐛 **Troubleshooting**
 
-```json
-{
-  "arbitrage": {
-    "min_profit_threshold": 0.001,     // 0.1% minimum profit
-    "max_position_size": 1000.0,       // Max $1000 per trade
-    "max_risk_per_trade": 0.02         // 2% max risk
-  }
-}
-```
+### **Common Issues**
 
-## 🖥️ **Platform Support**
-
-### **Windows Development**
-- ✅ **Visual Studio 2022** - Full IntelliSense and debugging support
-- ✅ **CMake Integration** - Works with VS Code, CLion, Visual Studio
-- ✅ **Release Builds** - Optimized production-ready executables
-- ✅ **Debug Builds** - Complete debugging with symbols and runtime checks
-- ✅ **Native Libraries** - Full Windows API integration for monitoring
-
-### **Raspberry Pi Production**
-- ✅ **ARM64 Optimization** - Cortex-A72 specific compiler flags
-- ✅ **Hardware Monitoring** - GPIO temperature sensors, CPU frequency scaling
-- ✅ **systemd Integration** - Production service management
-- ✅ **Resource Efficiency** - Optimized for limited RAM and CPU resources
-- ✅ **Stability Features** - Watchdog timers, automatic recovery
-
-### **Performance Tips**
-
-1. **Use SSD Storage**: Replace SD card with USB SSD for better I/O
-2. **Cooling**: Ensure CPU temperature stays below 70°C
-3. **Memory**: Enable 2GB swap file for stable operation
-4. **Network**: Use wired Ethernet for stable connection
-
-### **Monitoring Commands**
-
+**Connection Problems:**
 ```bash
-# Check CPU temperature
-vcgencmd measure_temp
-
-# Check for throttling
-vcgencmd get_throttled
-
-# Monitor system resources
-htop
-
-# Check service status
-systemctl status ats-v3
-
-# View logs
-journalctl -u ats-v3 -f
+# Test exchange connectivity
+curl -I https://api.binance.com/api/v3/ping
+curl -I https://api.upbit.com/v1/market/all
 ```
 
-## 📊 **Monitoring & Logging**
-
-### **System Health**
-- CPU, memory, and temperature monitoring
-- Automatic alerts when thresholds exceeded
-- Network connectivity checks
-- Exchange API health monitoring
-
-### **Trading Performance**
-- Real-time profit/loss tracking
-- Trade execution metrics
-- Opportunity detection statistics
-- Risk exposure monitoring
-
-### **Log Files**
-- Application logs: `logs/ats_v3.log`
-- System logs: `journalctl -u ats-v3`
-- Error tracking and debugging info
-
-## 🛡️ **Security & Risk Management**
-
-### **Built-in Safety Features**
-- Position size limits
-- Daily loss limits
-- Stop-loss mechanisms
-- API rate limiting
-- Network failure recovery
-
-### **Security Best Practices**
-- Store API keys securely
-- Use dedicated trading account with limited funds
-- Monitor system access logs
-- Regular security updates
-
-## 🔧 **Development**
-
-### **Building for Development**
-
-```powershell
-# Windows Debug build with all checks
-cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -G "Visual Studio 17 2022"
-cmake --build build --config Debug
-
-# Windows Release build optimized for production  
-cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -G "Visual Studio 17 2022"
-cmake --build build --config Release
-```
-
+**Permission Errors:**
 ```bash
-# Linux builds
-cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
-cmake --build build
-
-# With additional debugging
-cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=address"
-cmake --build build
+# Fix file permissions
+chmod +x ATS_V3
+chmod 600 config/settings.json
 ```
 
-### **Code Quality**
-- ✅ **Modern C++20**: Uses latest language features and standard library
-- ✅ **RAII Patterns**: Automatic resource management throughout
-- ✅ **Exception Safety**: Strong exception safety guarantees
-- ✅ **Const Correctness**: Proper const methods and immutable data
-- ✅ **Thread Safety**: Safe concurrent access to shared resources
-
-### **Testing**
+**Memory Issues (Raspberry Pi):**
 ```bash
-# Run unit tests (when implemented)
-cd build && ctest
+# Check memory usage
+free -h
 
-# Memory leak checking (Linux)
-valgrind --tool=memcheck ./build/ATS_V3
+# Increase swap space
+sudo dphys-swapfile swapoff
+sudo nano /etc/dphys-swapfile  # Set CONF_SWAPSIZE=2048
+sudo dphys-swapfile setup
+sudo dphys-swapfile swapon
 ```
 
-### **Contributing**
+### **Debug Mode**
+```bash
+# Run with maximum logging
+./ATS_V3 --debug --log-level=TRACE --console-output=true
+
+# Enable core dumps
+ulimit -c unlimited
+```
+
+## 📁 **Project Structure**
+
+```
+ats-v3/
+├── src/                        # Source code
+│   ├── main.cpp               # Application entry point
+│   ├── core/                  # Core arbitrage engine
+│   ├── exchange/              # Exchange implementations
+│   ├── network/               # Network and API clients
+│   ├── data/                  # Data structures and storage
+│   ├── utils/                 # Utilities (logging, config, JSON)
+│   └── monitoring/            # System monitoring
+├── config/                    # Configuration files
+│   └── settings.json.example  # Example configuration
+├── scripts/                   # Build and deployment scripts
+├── systemd/                   # System service configuration
+├── logs/                      # Log files (created at runtime)
+├── data/                      # Database files (created at runtime)
+└── CMakeLists.txt            # Build configuration
+```
+
+## 🤝 **Contributing**
+
 1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## 🏆 **Recent Achievements**
+## 📄 **License**
 
-**December 2024 - Production-Ready Implementation:**
-- ✅ **Complete System Implementation**: All core components fully functional
-- ✅ **Zero Compilation Issues**: Clean builds across all supported platforms  
-- ✅ **Production Quality Code**: Memory-safe, thread-safe, exception-safe
-- ✅ **Comprehensive JSON Handling**: RFC-compliant parsing with error recovery
-- ✅ **Advanced System Monitoring**: Real-time performance and health tracking
-- ✅ **Network Client Excellence**: Robust WebSocket and REST implementations
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-**Technical Milestones:**
-- ✅ **Type System Unification**: Centralized types eliminating all conflicts
-- ✅ **Memory Architecture**: Proper atomic variable usage and thread synchronization
-- ✅ **Error Handling**: Comprehensive exception safety and error recovery
-- ✅ **Performance Optimization**: Release builds optimized for production speed
-- ✅ **Cross-Platform Excellence**: Seamless Windows development, Raspberry Pi production
+## ⚠️ **Disclaimer**
 
-**Build Statistics:**
-- ✅ **Compilation Time**: ~30 seconds for full release build
-- ✅ **Binary Size**: ~2MB optimized executable  
-- ✅ **Memory Usage**: <50MB runtime footprint
-- ✅ **CPU Usage**: <5% on Raspberry Pi 4 during normal operation
+**This software is for educational and research purposes only. Cryptocurrency trading carries significant financial risk. Users are solely responsible for their trading decisions and any financial losses. The authors are not liable for any damages or losses resulting from the use of this software.**
 
-## 📞 **Support**
-
-For questions, issues, or contributions:
-- Create GitHub Issues for bug reports
-- Use Discussions for questions and ideas
-- Check logs first for troubleshooting
-- Include system specs and build output for support
-
----
-
-**Status**: ✅ Production Ready - Complete Implementation
-**Build Status**: ✅ Passing on Windows MSVC 2022, Linux GCC 10+, ARM64
-**Code Quality**: ✅ Memory Safe, Thread Safe, Exception Safe
-**Last Updated**: December 2024 
+**Always:**
+- Start with small amounts for testing
+- Understand the risks involved
+- Comply with local regulations
+- Monitor your trades actively
+- Use at your own risk

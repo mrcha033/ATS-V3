@@ -181,7 +181,7 @@ void RateLimiterManager::AddLimiter(const std::string& exchange_name,
                                    int max_requests, 
                                    std::chrono::milliseconds time_window) {
     std::lock_guard<std::mutex> lock(limiters_mutex_);
-    limiters_[exchange_name] = std::make_unique<RateLimiter>(max_requests, time_window);
+    limiters_[exchange_name] = std::make_shared<RateLimiter>(max_requests, time_window);
     LOG_INFO("Added rate limiter for {}: {} requests per {}ms", 
              exchange_name, max_requests, time_window.count());
 }
@@ -202,12 +202,26 @@ RateLimiter* RateLimiterManager::GetLimiter(const std::string& exchange_name) {
 }
 
 bool RateLimiterManager::TryAcquire(const std::string& exchange_name) {
-    auto* limiter = GetLimiter(exchange_name);
+    std::shared_ptr<RateLimiter> limiter;
+    {
+        std::lock_guard<std::mutex> lock(limiters_mutex_);
+        auto it = limiters_.find(exchange_name);
+        if (it != limiters_.end()) {
+            limiter = it->second;
+        }
+    }
     return limiter ? limiter->TryAcquire() : true; // Allow if no limiter
 }
 
 void RateLimiterManager::Acquire(const std::string& exchange_name) {
-    auto* limiter = GetLimiter(exchange_name);
+    std::shared_ptr<RateLimiter> limiter;
+    {
+        std::lock_guard<std::mutex> lock(limiters_mutex_);
+        auto it = limiters_.find(exchange_name);
+        if (it != limiters_.end()) {
+            limiter = it->second;
+        }
+    }
     if (limiter) {
         limiter->Acquire();
     }
@@ -215,7 +229,14 @@ void RateLimiterManager::Acquire(const std::string& exchange_name) {
 
 bool RateLimiterManager::AcquireWithTimeout(const std::string& exchange_name, 
                                           std::chrono::milliseconds timeout) {
-    auto* limiter = GetLimiter(exchange_name);
+    std::shared_ptr<RateLimiter> limiter;
+    {
+        std::lock_guard<std::mutex> lock(limiters_mutex_);
+        auto it = limiters_.find(exchange_name);
+        if (it != limiters_.end()) {
+            limiter = it->second;
+        }
+    }
     return limiter ? limiter->AcquireWithTimeout(timeout) : true;
 }
 

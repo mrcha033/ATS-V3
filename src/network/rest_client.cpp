@@ -3,6 +3,7 @@
 #include <chrono>
 #include <thread>
 #include <sstream>
+#include <iomanip>
 
 namespace ats {
 
@@ -290,11 +291,28 @@ std::string RestClient::BuildQueryString(const std::unordered_map<std::string, s
         }
         
         // URL encode the key and value
-        query << param.first << "=" << param.second;
+        query << UrlEncode(param.first) << "=" << UrlEncode(param.second);
         first = false;
     }
     
     return query.str();
+}
+
+std::string RestClient::UrlEncode(const std::string& str) {
+    std::ostringstream encoded;
+    encoded.fill('0');
+    encoded << std::hex;
+    
+    for (char c : str) {
+        // Keep alphanumeric and some safe characters
+        if (std::isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+            encoded << c;
+        } else {
+            encoded << '%' << std::setw(2) << static_cast<unsigned char>(c);
+        }
+    }
+    
+    return encoded.str();
 }
 
 // Statistics getters

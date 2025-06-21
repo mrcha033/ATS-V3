@@ -67,6 +67,10 @@ bool ConfigManager::GetBool(const std::string& key, bool default_value) const {
     return GetValue<bool>(key, default_value);
 }
 
+std::vector<std::string> ConfigManager::GetStringArray(const std::string& key, const std::vector<std::string>& default_value) const {
+    return GetValue<std::vector<std::string>>(key, default_value);
+}
+
 void ConfigManager::SetString(const std::string& key, const std::string& value) {
     config_data_[key] = value;
 }
@@ -80,6 +84,10 @@ void ConfigManager::SetDouble(const std::string& key, double value) {
 }
 
 void ConfigManager::SetBool(const std::string& key, bool value) {
+    config_data_[key] = value;
+}
+
+void ConfigManager::SetStringArray(const std::string& key, const std::vector<std::string>& value) {
     config_data_[key] = value;
 }
 
@@ -129,14 +137,14 @@ std::vector<ConfigManager::ExchangeConfig> ConfigManager::GetExchangeConfigs() c
 }
 
 std::vector<std::string> ConfigManager::GetTradingPairs() const {
-    // Default trading pairs
-    return {
+    // Try to get from config first, fallback to defaults
+    return GetStringArray("trading.pairs", {
         "BTC/USDT",
         "ETH/USDT", 
         "BNB/USDT",
         "ADA/USDT",
         "SOL/USDT"
-    };
+    });
 }
 
 double ConfigManager::GetMinProfitThreshold() const {
@@ -249,9 +257,22 @@ void ConfigManager::ParseJsonValue(const std::string& key, const JsonValue& valu
             ParseJsonObject(obj, key);
         }
         else if (ats::json::IsArray(value)) {
-            // Arrays are more complex - for now, skip them
-            // In a production system, we'd need to handle array parsing
-            LOG_WARNING("Array values not yet supported for config key: {}", key);
+            // Handle string arrays
+            auto array = ats::json::AsArray(value);
+            std::vector<std::string> string_array;
+            
+            for (const auto& element : array) {
+                if (ats::json::IsString(element)) {
+                    string_array.push_back(ats::json::AsString(element));
+                } else {
+                    LOG_WARNING("Non-string element in array for key: {}, skipping", key);
+                }
+            }
+            
+            if (!string_array.empty()) {
+                SetStringArray(key, string_array);
+                LOG_INFO("Parsed array config '{}' with {} elements", key, string_array.size());
+            }
         }
         else if (ats::json::IsNull(value)) {
             // Skip null values

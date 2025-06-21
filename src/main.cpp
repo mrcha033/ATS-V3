@@ -3,6 +3,7 @@
 #include <signal.h>
 #include <thread>
 #include <chrono>
+#include <atomic>
 
 #include "utils/logger.hpp"
 #include "utils/config_manager.hpp"
@@ -19,7 +20,7 @@ private:
     std::unique_ptr<SystemMonitor> system_monitor_;
     std::unique_ptr<HealthCheck> health_check_;
     
-    volatile bool running_ = true;
+    std::atomic<bool> running_{true};
     
 public:
     bool Initialize() {
@@ -41,6 +42,11 @@ public:
             
             // Initialize health check
             health_check_ = std::make_unique<HealthCheck>();
+            if (!health_check_->Initialize()) {
+                LOG_ERROR("Failed to initialize health check");
+                return false;
+            }
+            health_check_->Start();
             
             // Initialize arbitrage engine
             arbitrage_engine_ = std::make_unique<ArbitrageEngine>(config_manager_.get());
@@ -65,7 +71,7 @@ public:
         arbitrage_engine_->Start();
         
         // Main application loop
-        while (running_) {
+        while (running_ && !g_shutdown_requested.load()) {
             try {
                 // Health check
                 if (!health_check_->CheckSystem()) {
@@ -86,11 +92,17 @@ public:
             }
         }
         
+        // Handle shutdown signal
+        if (g_shutdown_requested.load()) {
+            LOG_INFO("Shutdown signal received, shutting down gracefully...");
+            Shutdown();
+        }
+        
         LOG_INFO("ATS V3 Shutting down...");
     }
     
     void Shutdown() {
-        running_ = false;
+        running_.store(false);
         
         if (arbitrage_engine_) {
             arbitrage_engine_->Stop();
@@ -100,6 +112,10 @@ public:
             system_monitor_->Stop();
         }
         
+        if (health_check_) {
+            health_check_->Stop();
+        }
+        
         LOG_INFO("ATS V3 Shutdown complete");
     }
 };
@@ -107,12 +123,13 @@ public:
 // Global application instance
 std::unique_ptr<Application> g_app;
 
+// Global atomic flag for shutdown
+std::atomic<bool> g_shutdown_requested{false};
+
 // Signal handler for graceful shutdown
 void SignalHandler(int signal) {
-    std::cout << "\nReceived signal " << signal << ", shutting down gracefully..." << std::endl;
-    if (g_app) {
-        g_app->Shutdown();
-    }
+    // Only use async-signal-safe operations in signal handler
+    g_shutdown_requested.store(true);
 }
 
 } // namespace ats

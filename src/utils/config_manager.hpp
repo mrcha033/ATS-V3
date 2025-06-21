@@ -8,7 +8,7 @@
 
 namespace ats {
 
-using ConfigValue = std::variant<std::string, int, double, bool>;
+using ConfigValue = std::variant<std::string, int, double, bool, std::vector<std::string>>;
 
 class ConfigManager {
 private:
@@ -28,12 +28,14 @@ public:
     int GetInt(const std::string& key, int default_value = 0) const;
     double GetDouble(const std::string& key, double default_value = 0.0) const;
     bool GetBool(const std::string& key, bool default_value = false) const;
+    std::vector<std::string> GetStringArray(const std::string& key, const std::vector<std::string>& default_value = {}) const;
     
     // Setters
     void SetString(const std::string& key, const std::string& value);
     void SetInt(const std::string& key, int value);
     void SetDouble(const std::string& key, double value);
     void SetBool(const std::string& key, bool value);
+    void SetStringArray(const std::string& key, const std::vector<std::string>& value);
     
     // Validation
     bool HasKey(const std::string& key) const;

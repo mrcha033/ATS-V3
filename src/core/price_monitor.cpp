@@ -84,6 +84,18 @@ void PriceMonitor::AddExchange(ExchangeInterface* exchange) {
     }
     
     std::lock_guard<std::mutex> lock(exchanges_mutex_);
+    
+    // Check for duplicates
+    auto it = std::find_if(exchanges_.begin(), exchanges_.end(),
+        [exchange](const ExchangeInterface* existing) {
+            return existing->GetName() == exchange->GetName();
+        });
+    
+    if (it != exchanges_.end()) {
+        LOG_WARNING("Exchange {} already exists in Price Monitor, skipping", exchange->GetName());
+        return;
+    }
+    
     exchanges_.push_back(exchange);
     
     LOG_INFO("Added exchange {} to Price Monitor", exchange->GetName());
