@@ -5,12 +5,27 @@
 #include <sstream>
 #include <algorithm>
 #include <cctype>
-#include <shared_mutex>
+
+// Include shared_mutex only if available
+#ifdef HAS_SHARED_MUTEX
+    #if HAS_SHARED_MUTEX
+        #include <shared_mutex>
+    #endif
+#endif
 
 namespace ats {
 
+// Type aliases for mutex locks based on availability
+#if HAS_SHARED_MUTEX
+    using shared_lock_type = shared_lock_type;
+    using unique_lock_type = unique_lock_type;
+#else
+    using shared_lock_type = std::unique_lock<std::mutex>;  // Fallback to exclusive lock
+    using unique_lock_type = std::unique_lock<std::mutex>;
+#endif
+
 bool ConfigManager::LoadConfig(const std::string& file_path) {
-    std::unique_lock<std::shared_mutex> lock(config_mutex_);
+    unique_lock_type lock(config_mutex_);
     config_file_path_ = file_path;
     
     std::ifstream file(file_path);
@@ -28,7 +43,7 @@ bool ConfigManager::LoadConfig(const std::string& file_path) {
 }
 
 bool ConfigManager::ReloadConfig() {
-    std::unique_lock<std::shared_mutex> lock(config_mutex_);
+    unique_lock_type lock(config_mutex_);
     if (config_file_path_.empty()) {
         LOG_ERROR("No config file path set for reload");
         return false;
@@ -40,7 +55,7 @@ bool ConfigManager::ReloadConfig() {
 }
 
 bool ConfigManager::SaveConfig(const std::string& file_path) {
-    std::shared_lock<std::shared_mutex> lock(config_mutex_);
+    shared_lock_type lock(config_mutex_);
     std::string target_path = file_path.empty() ? config_file_path_ : file_path;
     
     std::ofstream file(target_path);
@@ -77,37 +92,37 @@ std::vector<std::string> ConfigManager::GetStringArray(const std::string& key, c
 }
 
 void ConfigManager::SetString(const std::string& key, const std::string& value) {
-    std::unique_lock<std::shared_mutex> lock(config_mutex_);
+    unique_lock_type lock(config_mutex_);
     config_data_[key] = value;
 }
 
 void ConfigManager::SetInt(const std::string& key, int value) {
-    std::unique_lock<std::shared_mutex> lock(config_mutex_);
+    unique_lock_type lock(config_mutex_);
     config_data_[key] = value;
 }
 
 void ConfigManager::SetDouble(const std::string& key, double value) {
-    std::unique_lock<std::shared_mutex> lock(config_mutex_);
+    unique_lock_type lock(config_mutex_);
     config_data_[key] = value;
 }
 
 void ConfigManager::SetBool(const std::string& key, bool value) {
-    std::unique_lock<std::shared_mutex> lock(config_mutex_);
+    unique_lock_type lock(config_mutex_);
     config_data_[key] = value;
 }
 
 void ConfigManager::SetStringArray(const std::string& key, const std::vector<std::string>& value) {
-    std::unique_lock<std::shared_mutex> lock(config_mutex_);
+    unique_lock_type lock(config_mutex_);
     config_data_[key] = value;
 }
 
 bool ConfigManager::HasKey(const std::string& key) const {
-    std::shared_lock<std::shared_mutex> lock(config_mutex_);
+    shared_lock_type lock(config_mutex_);
     return config_data_.find(key) != config_data_.end();
 }
 
 bool ConfigManager::ValidateRequiredKeys(const std::vector<std::string>& required_keys) const {
-    std::shared_lock<std::shared_mutex> lock(config_mutex_);
+    shared_lock_type lock(config_mutex_);
     for (const auto& key : required_keys) {
         if (config_data_.find(key) == config_data_.end()) {
             LOG_ERROR("Required configuration key missing: {}", key);
@@ -220,7 +235,7 @@ bool ConfigManager::ParseJson(const std::string& json_content) {
 }
 
 std::string ConfigManager::ToJson() const {
-    std::shared_lock<std::shared_mutex> lock(config_mutex_);
+    shared_lock_type lock(config_mutex_);
     
     // Simple JSON output - basic implementation
     std::ostringstream json;
@@ -233,23 +248,29 @@ std::string ConfigManager::ToJson() const {
         
         json << "  \"" << pair.first << "\": ";
         
-        std::visit([&json](const auto& value) {
-            using T = std::decay_t<decltype(value)>;
-            if constexpr (std::is_same_v<T, std::string>) {
-                json << "\"" << value << "\"";
-            } else if constexpr (std::is_same_v<T, bool>) {
-                json << (value ? "true" : "false");
-            } else if constexpr (std::is_arithmetic_v<T>) {
-                json << value;
-            } else if constexpr (std::is_same_v<T, std::vector<std::string>>) {
+        // Handle different config value types
+        switch (pair.second.type) {
+            case ConfigValue::String:
+                json << "\"" << *pair.second.string_val << "\"";
+                break;
+            case ConfigValue::Int:
+                json << pair.second.int_val;
+                break;
+            case ConfigValue::Double:
+                json << pair.second.double_val;
+                break;
+            case ConfigValue::Bool:
+                json << (pair.second.bool_val ? "true" : "false");
+                break;
+            case ConfigValue::StringArray:
                 json << "[";
-                for (size_t i = 0; i < value.size(); ++i) {
+                for (size_t i = 0; i < pair.second.array_val->size(); ++i) {
                     if (i > 0) json << ", ";
-                    json << "\"" << value[i] << "\"";
+                    json << "\"" << (*pair.second.array_val)[i] << "\"";
                 }
                 json << "]";
-            }
-        }, pair.second);
+                break;
+        }
     }
     
     json << "\n}";
@@ -289,19 +310,40 @@ void ConfigManager::ParseJsonValue(const std::string& key, const JsonValue& valu
 
 template<typename T>
 T ConfigManager::GetValue(const std::string& key, const T& default_value) const {
-    std::shared_lock<std::shared_mutex> lock(config_mutex_);
+    shared_lock_type lock(config_mutex_);
     
     auto it = config_data_.find(key);
     if (it == config_data_.end()) {
         return default_value;
     }
     
-    try {
-        return std::get<T>(it->second);
-    } catch (const std::bad_variant_access&) {
-        LOG_WARNING("Type mismatch for config key: {}, using default", key);
-        return default_value;
+    // Type-safe access to ConfigValue
+    const ConfigValue& config_val = it->second;
+    
+    if constexpr (std::is_same_v<T, std::string>) {
+        if (config_val.type == ConfigValue::String) {
+            return *config_val.string_val;
+        }
+    } else if constexpr (std::is_same_v<T, int>) {
+        if (config_val.type == ConfigValue::Int) {
+            return config_val.int_val;
+        }
+    } else if constexpr (std::is_same_v<T, double>) {
+        if (config_val.type == ConfigValue::Double) {
+            return config_val.double_val;
+        }
+    } else if constexpr (std::is_same_v<T, bool>) {
+        if (config_val.type == ConfigValue::Bool) {
+            return config_val.bool_val;
+        }
+    } else if constexpr (std::is_same_v<T, std::vector<std::string>>) {
+        if (config_val.type == ConfigValue::StringArray) {
+            return *config_val.array_val;
+        }
     }
+    
+    LOG_WARNING("Type mismatch for config key: {}, using default", key);
+    return default_value;
 }
 
 // Explicit template instantiations

@@ -5,8 +5,19 @@
 #include <chrono>
 #include <atomic>
 #include <unordered_map>
-#include <variant>
 #include <memory>
+
+// Compatibility layer for older compilers that don't support std::variant
+#if __cplusplus >= 201703L && defined(__has_include)
+    #if __has_include(<variant>)
+        #include <variant>
+        #define HAS_STD_VARIANT 1
+    #else
+        #define HAS_STD_VARIANT 0
+    #endif
+#else
+    #define HAS_STD_VARIANT 0
+#endif
 
 namespace ats {
 
@@ -345,6 +356,7 @@ struct PriceComparison {
 // JSON value type for configuration
 struct JsonValue;
 
+#if HAS_STD_VARIANT
 struct JsonValue : public std::variant<
     std::nullptr_t,
     bool,
@@ -356,5 +368,77 @@ struct JsonValue : public std::variant<
 > {
     using variant::variant;
 };
+#else
+// Fallback implementation for compilers without std::variant support
+enum class JsonType {
+    Null, Bool, Int, Double, String, Array, Object
+};
+
+struct JsonValue {
+    JsonType type_;
+    union {
+        bool bool_val_;
+        int int_val_;
+        double double_val_;
+        std::string* string_val_;
+        std::vector<JsonValue>* array_val_;
+        std::unordered_map<std::string, JsonValue>* object_val_;
+    };
+    
+    JsonValue() : type_(JsonType::Null) {}
+    JsonValue(std::nullptr_t) : type_(JsonType::Null) {}
+    JsonValue(bool val) : type_(JsonType::Bool), bool_val_(val) {}
+    JsonValue(int val) : type_(JsonType::Int), int_val_(val) {}
+    JsonValue(double val) : type_(JsonType::Double), double_val_(val) {}
+    JsonValue(const std::string& val) : type_(JsonType::String), string_val_(new std::string(val)) {}
+    JsonValue(const char* val) : type_(JsonType::String), string_val_(new std::string(val)) {}
+    JsonValue(const std::vector<JsonValue>& val) : type_(JsonType::Array), array_val_(new std::vector<JsonValue>(val)) {}
+    JsonValue(const std::unordered_map<std::string, JsonValue>& val) : type_(JsonType::Object), object_val_(new std::unordered_map<std::string, JsonValue>(val)) {}
+    
+    // Copy constructor
+    JsonValue(const JsonValue& other) : type_(other.type_) {
+        switch (type_) {
+            case JsonType::Bool: bool_val_ = other.bool_val_; break;
+            case JsonType::Int: int_val_ = other.int_val_; break;
+            case JsonType::Double: double_val_ = other.double_val_; break;
+            case JsonType::String: string_val_ = new std::string(*other.string_val_); break;
+            case JsonType::Array: array_val_ = new std::vector<JsonValue>(*other.array_val_); break;
+            case JsonType::Object: object_val_ = new std::unordered_map<std::string, JsonValue>(*other.object_val_); break;
+            default: break;
+        }
+    }
+    
+    // Assignment operator
+    JsonValue& operator=(const JsonValue& other) {
+        if (this != &other) {
+            Clear();
+            type_ = other.type_;
+            switch (type_) {
+                case JsonType::Bool: bool_val_ = other.bool_val_; break;
+                case JsonType::Int: int_val_ = other.int_val_; break;
+                case JsonType::Double: double_val_ = other.double_val_; break;
+                case JsonType::String: string_val_ = new std::string(*other.string_val_); break;
+                case JsonType::Array: array_val_ = new std::vector<JsonValue>(*other.array_val_); break;
+                case JsonType::Object: object_val_ = new std::unordered_map<std::string, JsonValue>(*other.object_val_); break;
+                default: break;
+            }
+        }
+        return *this;
+    }
+    
+    // Destructor
+    ~JsonValue() { Clear(); }
+    
+private:
+    void Clear() {
+        switch (type_) {
+            case JsonType::String: delete string_val_; break;
+            case JsonType::Array: delete array_val_; break;
+            case JsonType::Object: delete object_val_; break;
+            default: break;
+        }
+    }
+};
+#endif
 
 } // namespace ats 

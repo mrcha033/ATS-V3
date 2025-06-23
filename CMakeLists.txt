@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.16)
 project(ATS-V3 LANGUAGES CXX)
 
 # Set C++ standard
+# Note: C++20 is preferred (as documented in README) but requires GCC 8+ or Clang 10+
+# Current compiler GNU 6.3.0 only supports up to C++17
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -23,6 +25,22 @@ endif()
 
 # Find required packages
 find_package(Threads REQUIRED)
+
+# Find external dependencies for UpbitExchange
+find_package(PkgConfig QUIET)
+find_package(OpenSSL QUIET)
+
+# Find jwt-cpp (header-only library)
+find_path(JWT_CPP_INCLUDE_DIR
+    NAMES jwt-cpp/jwt.h
+    PATHS /usr/include /usr/local/include
+    PATH_SUFFIXES jwt-cpp
+)
+
+# Find libuuid
+if(PkgConfig_FOUND)
+    pkg_check_modules(UUID QUIET uuid)
+endif()
 
 # Find CURL package (works with vcpkg)
 find_package(CURL QUIET)
@@ -72,6 +90,34 @@ target_link_libraries(${PROJECT_NAME}
     PRIVATE 
     Threads::Threads
 )
+
+# Link OpenSSL if available
+if(OpenSSL_FOUND)
+    target_link_libraries(${PROJECT_NAME} PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_OPENSSL)
+    message(STATUS "Found OpenSSL: ${OPENSSL_VERSION}")
+else()
+    message(WARNING "OpenSSL not found - UpbitExchange will have limited functionality")
+endif()
+
+# Link uuid if available
+if(UUID_FOUND)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${UUID_LIBRARIES})
+    target_include_directories(${PROJECT_NAME} PRIVATE ${UUID_INCLUDE_DIRS})
+    target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_UUID)
+    message(STATUS "Found libuuid")
+else()
+    message(WARNING "libuuid not found - UpbitExchange will have limited functionality")
+endif()
+
+# Include jwt-cpp if available
+if(JWT_CPP_INCLUDE_DIR)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${JWT_CPP_INCLUDE_DIR})
+    target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_JWT_CPP)
+    message(STATUS "Found jwt-cpp headers")
+else()
+    message(WARNING "jwt-cpp not found - UpbitExchange will have limited functionality")
+endif()
 
 # Link curl if available
 if(CURL_FOUND)

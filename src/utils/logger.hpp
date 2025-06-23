@@ -11,7 +11,7 @@ namespace ats {
 
 enum class LogLevel {
     TRACE = 0,
-    DEBUG = 1,
+    DBG = 1,      // Renamed from DEBUG to avoid macro conflicts
     INFO = 2,
     WARNING = 3,
     ERROR = 4,
@@ -85,33 +85,36 @@ private:
         return oss.str();
     }
     
-    // Efficient type-to-string conversion
+    // Efficient type-to-string conversion - simplified for older compilers
+    std::string ToString(const std::string& value) { return value; }
+    std::string ToString(const char* value) { return std::string(value); }
+    std::string ToString(char* value) { return std::string(value); }
+    std::string ToString(bool value) { return value ? "true" : "false"; }
+    std::string ToString(int value) { return std::to_string(value); }
+    std::string ToString(long value) { return std::to_string(value); }
+    std::string ToString(long long value) { return std::to_string(value); }
+    std::string ToString(unsigned value) { return std::to_string(value); }
+    std::string ToString(unsigned long value) { return std::to_string(value); }
+    std::string ToString(unsigned long long value) { return std::to_string(value); }
+    std::string ToString(float value) { 
+        std::ostringstream oss;
+        oss.precision(6);
+        oss << value;
+        return oss.str();
+    }
+    std::string ToString(double value) { 
+        std::ostringstream oss;
+        oss.precision(6);
+        oss << value;
+        return oss.str();
+    }
+    
+    // Generic fallback for other types
     template<typename T>
-    std::string ToString(T&& value) {
-        if constexpr (std::is_same_v<std::decay_t<T>, std::string>) {
-            return std::forward<T>(value);
-        } else if constexpr (std::is_same_v<std::decay_t<T>, const char*>) {
-            return std::string(value);
-        } else if constexpr (std::is_same_v<std::decay_t<T>, char*>) {
-            return std::string(value);
-        } else if constexpr (std::is_arithmetic_v<std::decay_t<T>>) {
-            if constexpr (std::is_floating_point_v<std::decay_t<T>>) {
-                // Use ostringstream for floating point to control precision
-                std::ostringstream oss;
-                oss.precision(6);
-                oss << std::forward<T>(value);
-                return oss.str();
-            } else {
-                return std::to_string(value);
-            }
-        } else if constexpr (std::is_same_v<std::decay_t<T>, bool>) {
-            return value ? "true" : "false";
-        } else {
-            // For other types, try to convert to string via stream
-            std::ostringstream oss;
-            oss << std::forward<T>(value);
-            return oss.str();
-        }
+    std::string ToString(const T& value) {
+        std::ostringstream oss;
+        oss << value;
+        return oss.str();
     }
     
     std::string FormatTimestamp();
@@ -120,7 +123,7 @@ private:
 
 // Convenience macros
 #define LOG_TRACE(...) ats::Logger::Instance().Log(ats::LogLevel::TRACE, __VA_ARGS__)
-#define LOG_DEBUG(...) ats::Logger::Instance().Log(ats::LogLevel::DEBUG, __VA_ARGS__)
+#define LOG_DEBUG(...) ats::Logger::Instance().Log(ats::LogLevel::DBG, __VA_ARGS__)
 #define LOG_INFO(...) ats::Logger::Instance().Log(ats::LogLevel::INFO, __VA_ARGS__)
 #define LOG_WARNING(...) ats::Logger::Instance().Log(ats::LogLevel::WARNING, __VA_ARGS__)
 #define LOG_ERROR(...) ats::Logger::Instance().Log(ats::LogLevel::ERROR, __VA_ARGS__)

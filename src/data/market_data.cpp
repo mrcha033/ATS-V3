@@ -10,19 +10,19 @@ MarketDataFeed::MarketDataFeed()
 }
 
 void MarketDataFeed::UpdatePrice(const std::string& exchange, const Price& price) {
-    std::unique_lock<std::shared_mutex> lock(data_mutex_);
+    unique_lock_type lock(data_mutex_);
     std::string key = MakeKey(exchange, price.symbol);
     latest_prices_[key] = price;
 }
 
 void MarketDataFeed::UpdateOrderBook(const std::string& exchange, const OrderBook& orderbook) {
-    std::unique_lock<std::shared_mutex> lock(data_mutex_);
+    unique_lock_type lock(data_mutex_);
     std::string key = MakeKey(exchange, orderbook.symbol);
     latest_orderbooks_[key] = orderbook;
 }
 
 void MarketDataFeed::UpdateTicker(const std::string& exchange, const Ticker& ticker) {
-    std::unique_lock<std::shared_mutex> lock(data_mutex_);
+    unique_lock_type lock(data_mutex_);
     std::string key = MakeKey(exchange, ticker.symbol);
     latest_tickers_[key] = ticker;
 }
@@ -33,7 +33,7 @@ void MarketDataFeed::UpdateTrade(const std::string& exchange, const Trade& trade
 }
 
 bool MarketDataFeed::GetLatestPrice(const std::string& exchange, const std::string& symbol, Price& price) const {
-    std::shared_lock<std::shared_mutex> lock(data_mutex_);
+    shared_lock_type lock(data_mutex_);
     std::string key = MakeKey(exchange, symbol);
     auto it = latest_prices_.find(key);
     if (it != latest_prices_.end()) {
@@ -44,7 +44,7 @@ bool MarketDataFeed::GetLatestPrice(const std::string& exchange, const std::stri
 }
 
 bool MarketDataFeed::GetLatestOrderBook(const std::string& exchange, const std::string& symbol, OrderBook& orderbook) const {
-    std::shared_lock<std::shared_mutex> lock(data_mutex_);
+    shared_lock_type lock(data_mutex_);
     std::string key = MakeKey(exchange, symbol);
     auto it = latest_orderbooks_.find(key);
     if (it != latest_orderbooks_.end()) {
@@ -55,7 +55,7 @@ bool MarketDataFeed::GetLatestOrderBook(const std::string& exchange, const std::
 }
 
 bool MarketDataFeed::GetLatestTicker(const std::string& exchange, const std::string& symbol, Ticker& ticker) const {
-    std::shared_lock<std::shared_mutex> lock(data_mutex_);
+    shared_lock_type lock(data_mutex_);
     std::string key = MakeKey(exchange, symbol);
     auto it = latest_tickers_.find(key);
     if (it != latest_tickers_.end()) {
@@ -67,7 +67,7 @@ bool MarketDataFeed::GetLatestTicker(const std::string& exchange, const std::str
 
 PriceComparison MarketDataFeed::ComparePrices(const std::string& symbol, 
                                              const std::vector<std::string>& exchanges) const {
-    std::shared_lock<std::shared_mutex> lock(data_mutex_);
+    shared_lock_type lock(data_mutex_);
     
     PriceComparison comparison;
     comparison.symbol = symbol;
@@ -106,7 +106,7 @@ PriceComparison MarketDataFeed::ComparePrices(const std::string& symbol,
 std::vector<MarketDepth> MarketDataFeed::GetMarketDepth(const std::string& symbol,
                                                        const std::vector<std::string>& exchanges) const {
     std::vector<MarketDepth> depths;
-    std::shared_lock<std::shared_mutex> lock(data_mutex_);
+    shared_lock_type lock(data_mutex_);
     
     for (const auto& exchange : exchanges) {
         std::string key = MakeKey(exchange, symbol);
@@ -148,13 +148,13 @@ std::vector<MarketDepth> MarketDataFeed::GetMarketDepth(const std::string& symbo
 }
 
 MarketStats MarketDataFeed::GetMarketStats(const std::string& symbol) const {
-    std::shared_lock<std::shared_mutex> lock(data_mutex_);
+    shared_lock_type lock(data_mutex_);
     auto it = market_stats_.find(symbol);
     return (it != market_stats_.end()) ? it->second : MarketStats();
 }
 
 void MarketDataFeed::UpdateMarketStats(const std::string& symbol) {
-    std::unique_lock<std::shared_mutex> lock(data_mutex_);
+    unique_lock_type lock(data_mutex_);
     
     MarketStats stats;
     stats.symbol = symbol;
@@ -170,7 +170,7 @@ void MarketDataFeed::UpdateMarketStats(const std::string& symbol) {
 }
 
 std::vector<std::string> MarketDataFeed::GetAvailableSymbols() const {
-    std::shared_lock<std::shared_mutex> lock(data_mutex_);
+    shared_lock_type lock(data_mutex_);
     std::unordered_set<std::string> symbols;
     
     for (const auto& pair : latest_prices_) {
@@ -184,7 +184,7 @@ std::vector<std::string> MarketDataFeed::GetAvailableSymbols() const {
 }
 
 std::vector<std::string> MarketDataFeed::GetActiveExchanges() const {
-    std::shared_lock<std::shared_mutex> lock(data_mutex_);
+    shared_lock_type lock(data_mutex_);
     std::unordered_set<std::string> exchanges;
     
     for (const auto& pair : latest_prices_) {
@@ -199,7 +199,7 @@ std::vector<std::string> MarketDataFeed::GetActiveExchanges() const {
 
 bool MarketDataFeed::IsDataStale(const std::string& exchange, const std::string& symbol, 
                                 std::chrono::seconds max_age) const {
-    std::shared_lock<std::shared_mutex> lock(data_mutex_);
+    shared_lock_type lock(data_mutex_);
     std::string key = MakeKey(exchange, symbol);
     auto it = latest_prices_.find(key);
     
@@ -215,7 +215,7 @@ bool MarketDataFeed::IsDataStale(const std::string& exchange, const std::string&
 }
 
 void MarketDataFeed::CleanupOldData(std::chrono::minutes max_age) {
-    std::unique_lock<std::shared_mutex> lock(data_mutex_);
+    unique_lock_type lock(data_mutex_);
     
     auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
@@ -241,7 +241,7 @@ void MarketDataFeed::CleanupOldData(std::chrono::minutes max_age) {
 }
 
 size_t MarketDataFeed::GetMemoryUsage() const {
-    std::shared_lock<std::shared_mutex> lock(data_mutex_);
+    shared_lock_type lock(data_mutex_);
     
     size_t usage = 0;
     usage += latest_prices_.size() * (sizeof(Price) + 50); // Approximate key size

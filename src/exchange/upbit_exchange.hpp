@@ -1,6 +1,7 @@
 #pragma once
 
 #include "exchange_interface.hpp"
+#include "../core/types.hpp"
 #include "../network/rest_client.hpp"
 #include "../network/websocket_client.hpp"
 #include "../utils/json_parser.hpp"
@@ -104,17 +105,17 @@ private:
     
     // API methods
     bool MakeRequest(const std::string& endpoint, const std::string& method,
-                    const std::string& params, Json::Value& response);
+                    const std::string& params, JsonValue& response);
     bool MakeAuthenticatedRequest(const std::string& endpoint, const std::string& method,
-                                 const std::string& params, Json::Value& response);
+                                 const std::string& params, JsonValue& response);
     
     // Data parsing
-    OrderStatus ParseOrderStatus(const Json::Value& order_data);
-    Trade ParseTrade(const Json::Value& trade_data);
-    MarketData ParseMarketData(const Json::Value& ticker_data);
-    OrderBook ParseOrderBook(const Json::Value& orderbook_data);
-    Candle ParseCandle(const Json::Value& candle_data);
-    Ticker ParseTicker(const Json::Value& ticker_data);
+    OrderStatus ParseOrderStatus(const JsonValue& order_data);
+    Trade ParseTrade(const JsonValue& trade_data);
+    MarketData ParseMarketData(const JsonValue& ticker_data);
+    OrderBook ParseOrderBook(const JsonValue& orderbook_data);
+    Candle ParseCandle(const JsonValue& candle_data);
+    Ticker ParseTicker(const JsonValue& ticker_data);
     
     // WebSocket handlers
     void OnWebSocketMessage(const std::string& message);

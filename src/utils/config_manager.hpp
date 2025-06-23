@@ -2,20 +2,86 @@
 
 #include <string>
 #include <unordered_map>
-#include <variant>
 #include <vector>
-#include <shared_mutex>
+#include <mutex>
 #include "../core/types.hpp"
+
+// Compatibility layer for older compilers that don't have std::shared_mutex
+#if __cplusplus >= 201703L && defined(__has_include)
+    #if __has_include(<shared_mutex>)
+        #include <shared_mutex>
+        #define HAS_SHARED_MUTEX 1
+    #else
+        #define HAS_SHARED_MUTEX 0
+    #endif
+#else
+    #define HAS_SHARED_MUTEX 0
+#endif
 
 namespace ats {
 
-using ConfigValue = std::variant<std::string, int, double, bool, std::vector<std::string>>;
+// Configuration value type - simplified for compatibility
+struct ConfigValue {
+    enum Type { String, Int, Double, Bool, StringArray } type;
+    union {
+        std::string* string_val;
+        int int_val;
+        double double_val;
+        bool bool_val;
+        std::vector<std::string>* array_val;
+    };
+    
+    ConfigValue(const std::string& val) : type(String), string_val(new std::string(val)) {}
+    ConfigValue(int val) : type(Int), int_val(val) {}
+    ConfigValue(double val) : type(Double), double_val(val) {}
+    ConfigValue(bool val) : type(Bool), bool_val(val) {}
+    ConfigValue(const std::vector<std::string>& val) : type(StringArray), array_val(new std::vector<std::string>(val)) {}
+    
+    ~ConfigValue() {
+        if (type == String) delete string_val;
+        else if (type == StringArray) delete array_val;
+    }
+    
+    // Copy constructor
+    ConfigValue(const ConfigValue& other) : type(other.type) {
+        switch (type) {
+            case String: string_val = new std::string(*other.string_val); break;
+            case Int: int_val = other.int_val; break;
+            case Double: double_val = other.double_val; break;
+            case Bool: bool_val = other.bool_val; break;
+            case StringArray: array_val = new std::vector<std::string>(*other.array_val); break;
+        }
+    }
+    
+    // Assignment operator
+    ConfigValue& operator=(const ConfigValue& other) {
+        if (this != &other) {
+            if (type == String) delete string_val;
+            else if (type == StringArray) delete array_val;
+            
+            type = other.type;
+            switch (type) {
+                case String: string_val = new std::string(*other.string_val); break;
+                case Int: int_val = other.int_val; break;
+                case Double: double_val = other.double_val; break;
+                case Bool: bool_val = other.bool_val; break;
+                case StringArray: array_val = new std::vector<std::string>(*other.array_val); break;
+            }
+        }
+        return *this;
+    }
+};
 
 class ConfigManager {
 private:
     std::unordered_map<std::string, ConfigValue> config_data_;
     std::string config_file_path_;
+    
+#if HAS_SHARED_MUTEX
     mutable std::shared_mutex config_mutex_; // Thread-safe access
+#else
+    mutable std::mutex config_mutex_; // Fallback for older compilers
+#endif
     
 public:
     ConfigManager() = default;

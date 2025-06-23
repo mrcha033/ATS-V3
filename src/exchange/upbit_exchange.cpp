@@ -88,24 +88,34 @@ bool UpbitExchange::InitializeConnection() {
 
 void UpbitExchange::LoadSymbolMappings() {
     // Load market list to build symbol mappings
-    Json::Value response;
-    if (MakeRequest("/v1/market/all", "GET", "", response)) {
-        if (response.isArray()) {
-            for (const auto& market : response) {
-                if (market.isMember("market")) {
-                    std::string upbit_symbol = market["market"].asString();
-                    // Convert KRW-BTC to BTCKRW format
-                    size_t dash_pos = upbit_symbol.find('-');
-                    if (dash_pos != std::string::npos) {
-                        std::string quote = upbit_symbol.substr(0, dash_pos);
-                        std::string base = upbit_symbol.substr(dash_pos + 1);
-                        std::string normalized = base + quote;
-                        
-                        symbol_map_[normalized] = upbit_symbol;
-                        reverse_symbol_map_[upbit_symbol] = normalized;
+    auto response = rest_client_->Get(BASE_URL + "/v1/market/all");
+    if (response.IsSuccess()) {
+        try {
+            JsonValue json_response = JsonParser::ParseString(response.body);
+            if (ats::json::IsArray(json_response)) {
+                auto markets = ats::json::AsArray(json_response);
+                for (const auto& market : markets) {
+                    if (ats::json::IsObject(market)) {
+                        auto market_obj = ats::json::AsObject(market);
+                        auto market_it = market_obj.find("market");
+                        if (market_it != market_obj.end()) {
+                            std::string upbit_symbol = ats::json::AsString(market_it->second);
+                            // Convert KRW-BTC to BTCKRW format
+                            size_t dash_pos = upbit_symbol.find('-');
+                            if (dash_pos != std::string::npos) {
+                                std::string quote = upbit_symbol.substr(0, dash_pos);
+                                std::string base = upbit_symbol.substr(dash_pos + 1);
+                                std::string normalized = base + quote;
+                                
+                                symbol_map_[normalized] = upbit_symbol;
+                                reverse_symbol_map_[upbit_symbol] = normalized;
+                            }
+                        }
                     }
                 }
             }
+        } catch (const std::exception& e) {
+            LOG_ERROR("Failed to parse market data: {}", e.what());
         }
     }
 }
@@ -203,7 +213,7 @@ void UpbitExchange::UpdateRateLimit() {
 }
 
 bool UpbitExchange::MakeRequest(const std::string& endpoint, const std::string& method,
-                               const std::string& params, Json::Value& response) {
+                               const std::string& params, JsonValue& response) {
     if (!CheckRateLimit()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         return MakeRequest(endpoint, method, params, response);
@@ -220,48 +230,52 @@ bool UpbitExchange::MakeRequest(const std::string& endpoint, const std::string& 
             full_url += "?" + params;
         }
         
-        std::string response_str;
-        bool success = false;
+        HttpResponse http_response;
         
         if (method == "GET") {
-            success = rest_client_->Get(full_url, headers, response_str);
+            http_response = rest_client_->Get(full_url, headers);
         } else if (method == "POST") {
-            success = rest_client_->Post(full_url, params, headers, response_str);
+            http_response = rest_client_->Post(full_url, params, headers);
         } else if (method == "DELETE") {
-            success = rest_client_->Delete(full_url, headers, response_str);
+            http_response = rest_client_->Delete(full_url, headers);
         }
         
         UpdateRateLimit();
         
-        if (!success) {
-            Logger::Error("HTTP request failed for endpoint: " + endpoint);
+        if (!http_response.IsSuccess()) {
+            LOG_ERROR("HTTP request failed for endpoint: {}", endpoint);
             return false;
         }
         
-        JsonParser parser;
-        if (!parser.Parse(response_str, response)) {
-            Logger::Error("Failed to parse JSON response from: " + endpoint);
+        try {
+            response = JsonParser::ParseString(http_response.body);
+        } catch (const JsonParseError& e) {
+            LOG_ERROR("Failed to parse JSON response from {}: {}", endpoint, e.what());
             return false;
         }
         
         // Check for API errors
-        if (response.isMember("error")) {
-            Logger::Error("API error: " + response["error"].asString());
-            return false;
+        if (ats::json::IsObject(response)) {
+            auto obj = ats::json::AsObject(response);
+            auto error_it = obj.find("error");
+            if (error_it != obj.end()) {
+                LOG_ERROR("API error: {}", ats::json::AsString(error_it->second));
+                return false;
+            }
         }
         
         return true;
         
     } catch (const std::exception& e) {
-        Logger::Error("Exception in MakeRequest: " + std::string(e.what()));
+        LOG_ERROR("Exception in MakeRequest: {}", e.what());
         return false;
     }
 }
 
 bool UpbitExchange::MakeAuthenticatedRequest(const std::string& endpoint, const std::string& method,
-                                           const std::string& params, Json::Value& response) {
+                                           const std::string& params, JsonValue& response) {
     if (access_key_.empty() || secret_key_.empty()) {
-        Logger::Error("Authentication credentials not provided");
+        LOG_ERROR("Authentication credentials not provided");
         return false;
     }
     
@@ -279,40 +293,44 @@ bool UpbitExchange::MakeAuthenticatedRequest(const std::string& endpoint, const 
             full_url += "?" + params;
         }
         
-        std::string response_str;
-        bool success = false;
+        HttpResponse http_response;
         
         if (method == "GET") {
-            success = rest_client_->Get(full_url, headers, response_str);
+            http_response = rest_client_->Get(full_url, headers);
         } else if (method == "POST") {
-            success = rest_client_->Post(full_url, params, headers, response_str);
+            http_response = rest_client_->Post(full_url, params, headers);
         } else if (method == "DELETE") {
-            success = rest_client_->Delete(full_url, headers, response_str);
+            http_response = rest_client_->Delete(full_url, headers);
         }
         
         UpdateRateLimit();
         
-        if (!success) {
-            Logger::Error("Authenticated HTTP request failed for endpoint: " + endpoint);
+        if (!http_response.IsSuccess()) {
+            LOG_ERROR("Authenticated HTTP request failed for endpoint: {}", endpoint);
             return false;
         }
         
-        JsonParser parser;
-        if (!parser.Parse(response_str, response)) {
-            Logger::Error("Failed to parse JSON response from: " + endpoint);
+        try {
+            response = JsonParser::ParseString(http_response.body);
+        } catch (const JsonParseError& e) {
+            LOG_ERROR("Failed to parse JSON response from {}: {}", endpoint, e.what());
             return false;
         }
         
         // Check for API errors
-        if (response.isMember("error")) {
-            Logger::Error("API error: " + response["error"].asString());
-            return false;
+        if (ats::json::IsObject(response)) {
+            auto obj = ats::json::AsObject(response);
+            auto error_it = obj.find("error");
+            if (error_it != obj.end()) {
+                LOG_ERROR("API error: {}", ats::json::AsString(error_it->second));
+                return false;
+            }
         }
         
         return true;
         
     } catch (const std::exception& e) {
-        Logger::Error("Exception in MakeAuthenticatedRequest: " + std::string(e.what()));
+        LOG_ERROR("Exception in MakeAuthenticatedRequest: {}", e.what());
         return false;
     }
 }
@@ -330,40 +348,48 @@ bool UpbitExchange::PlaceOrder(const OrderRequest& request) {
             return false;
         }
         
-        Json::Value params;
-        params["market"] = upbit_symbol;
-        params["side"] = FormatOrderSide(request.side);
-        params["ord_type"] = FormatOrderType(request.type);
+        // Build JSON parameters string manually since we don't have jsoncpp
+        std::ostringstream params_stream;
+        params_stream << "{";
+        params_stream << "\"market\":\"" << upbit_symbol << "\",";
+        params_stream << "\"side\":\"" << FormatOrderSide(request.side) << "\",";
+        params_stream << "\"ord_type\":\"" << FormatOrderType(request.type) << "\"";
         
         if (request.type == OrderType::LIMIT) {
-            params["price"] = std::to_string(request.price);
-            params["volume"] = std::to_string(request.quantity);
+            params_stream << ",\"price\":\"" << request.price << "\"";
+            params_stream << ",\"volume\":\"" << request.quantity << "\"";
         } else if (request.type == OrderType::MARKET) {
             if (request.side == OrderSide::BUY) {
-                params["price"] = std::to_string(request.price * request.quantity);
+                params_stream << ",\"price\":\"" << (request.price * request.quantity) << "\"";
             } else {
-                params["volume"] = std::to_string(request.quantity);
+                params_stream << ",\"volume\":\"" << request.quantity << "\"";
             }
         }
+        params_stream << "}";
         
-        Json::StreamWriterBuilder builder;
-        std::string params_str = Json::writeString(builder, params);
+        std::string params_str = params_stream.str();
         
-        Json::Value response;
+        JsonValue response;
         if (!MakeAuthenticatedRequest("/v1/orders", "POST", params_str, response)) {
-            Logger::Error("Failed to place order on Upbit");
+            LOG_ERROR("Failed to place order on Upbit");
             return false;
         }
         
-        if (response.isMember("uuid")) {
-            Logger::Info("Order placed successfully. Order ID: " + response["uuid"].asString());
-            return true;
+        // Check if response contains uuid
+        if (ats::json::IsObject(response)) {
+            auto obj = ats::json::AsObject(response);
+            auto uuid_it = obj.find("uuid");
+            if (uuid_it != obj.end()) {
+                std::string order_id = ats::json::AsString(uuid_it->second);
+                LOG_INFO("Order placed successfully. Order ID: {}", order_id);
+                return true;
+            }
         }
         
         return false;
         
     } catch (const std::exception& e) {
-        Logger::Error("Exception in PlaceOrder: " + std::string(e.what()));
+        LOG_ERROR("Exception in PlaceOrder: {}", e.what());
         return false;
     }
 }
