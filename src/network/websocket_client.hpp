@@ -1,5 +1,18 @@
 #pragma once
 
+// Prevent Windows header pollution
+#if defined(_WIN32)
+    #define WIN32_LEAN_AND_MEAN
+    #define NOMINMAX
+    // Undefine conflicting Windows macros before our declarations
+    #ifdef SendMessage
+        #undef SendMessage
+    #endif
+    #ifdef GetMessage  
+        #undef GetMessage
+    #endif
+#endif
+
 #include <string>
 #include <functional>
 #include <thread>
@@ -117,6 +130,9 @@ public:
     void SetAutoReconnect(bool auto_reconnect, int interval_ms = 5000);
     
     // Message sending
+    #if defined(_WIN32) && defined(SendMessage)
+        #undef SendMessage
+    #endif
     bool SendMessage(const std::string& message);
     bool SendPing();
     

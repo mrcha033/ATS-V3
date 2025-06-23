@@ -15,6 +15,9 @@
 
 namespace ats {
 
+// JSON type alias for compatibility
+using JsonValue = ats::json::JsonValue;
+
 class UpbitExchange : public ExchangeInterface {
 public:
     UpbitExchange(const std::string& access_key = "", const std::string& secret_key = "");
@@ -29,6 +32,7 @@ public:
     // Market data
     bool GetPrice(const std::string& symbol, Price& price) override;
     bool GetOrderBook(const std::string& symbol, OrderBook& orderbook) override;
+    OrderBook GetOrderBook(const std::string& symbol, int depth);
     std::vector<std::string> GetSupportedSymbols() override;
     
     // Account information  
@@ -60,6 +64,9 @@ public:
     // Health check
     bool IsHealthy() const override;
     std::string GetLastError() const override;
+    
+    // Connection status
+    bool IsConnected() const;
 
     // Upbit specific methods
     std::vector<std::string> GetMarkets();
@@ -67,6 +74,16 @@ public:
                    int count, std::vector<Candle>& candles);
     bool GetTicker(const std::string& symbol, Ticker& ticker);
     std::vector<Ticker> GetAllTickers();
+    
+    // Additional methods from implementation
+    bool GetOrderStatus(const std::string& order_id, OrderStatus& status);
+    std::vector<Trade> GetTradeHistory(const std::string& symbol, int limit = 100);
+    AccountInfo GetAccountInfo();
+    MarketData GetMarketData(const std::string& symbol);
+    bool SubscribeToMarketData(const std::string& symbol, 
+                              std::function<void(const MarketData&)> callback);
+    bool SubscribeToTrades(const std::string& symbol,
+                          std::function<void(const Trade&)> callback);
 
 private:
     std::string access_key_;
@@ -106,17 +123,17 @@ private:
     
     // API methods
     bool MakeRequest(const std::string& endpoint, const std::string& method,
-                    const std::string& params, ats::json::JsonValue& response);
+                    const std::string& params, JsonValue& response);
     bool MakeAuthenticatedRequest(const std::string& endpoint, const std::string& method,
-                                 const std::string& params, ats::json::JsonValue& response);
+                                 const std::string& params, JsonValue& response);
     
-    // Data parsing
-    OrderStatus ParseOrderStatus(const ats::json::JsonValue& order_data);
-    Trade ParseTrade(const ats::json::JsonValue& trade_data);
-    MarketData ParseMarketData(const ats::json::JsonValue& ticker_data);
-    OrderBook ParseOrderBook(const ats::json::JsonValue& orderbook_data);
-    Candle ParseCandle(const ats::json::JsonValue& candle_data);
-    Ticker ParseTicker(const ats::json::JsonValue& ticker_data);
+    // Data parsing  
+    Order ParseOrder(const JsonValue& order_data);
+    Trade ParseTrade(const JsonValue& trade_data);
+    MarketData ParseMarketData(const JsonValue& ticker_data);
+    OrderBook ParseOrderBook(const JsonValue& orderbook_data);
+    Candle ParseCandle(const JsonValue& candle_data);
+    Ticker ParseTicker(const JsonValue& ticker_data);
     
     // WebSocket handlers
     void OnWebSocketMessage(const std::string& message);

@@ -12,34 +12,7 @@
 
 namespace ats {
 
-// Callback function for writing received data
-static size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* data) {
-    size_t total_size = size * nmemb;
-    data->append((char*)contents, total_size);
-    return total_size;
-}
-
-// Callback function for writing headers
-static size_t HeaderCallback(char* buffer, size_t size, size_t nitems, std::map<std::string, std::string>* headers) {
-    size_t total_size = size * nitems;
-    std::string header(buffer, total_size);
-    
-    size_t pos = header.find(':');
-    if (pos != std::string::npos) {
-        std::string key = header.substr(0, pos);
-        std::string value = header.substr(pos + 1);
-        
-        // Trim whitespace
-        key.erase(0, key.find_first_not_of(" \t"));
-        key.erase(key.find_last_not_of(" \t\r\n") + 1);
-        value.erase(0, value.find_first_not_of(" \t"));
-        value.erase(value.find_last_not_of(" \t\r\n") + 1);
-        
-        (*headers)[key] = value;
-    }
-    
-    return total_size;
-}
+// CURL callback functions - defined as class static methods
 
 RestClient::RestClient()
     : curl_handle_(nullptr)
@@ -204,7 +177,7 @@ HttpResponse RestClient::Delete(const std::string& url,
 
 HttpResponse RestClient::Request(const HttpRequest& request) {
     auto start_time = std::chrono::steady_clock::now();
-    total_requests_++;
+    total_requests_.fetch_add(1);
     
     HttpResponse response;
     response.status_code = 0;
@@ -213,7 +186,7 @@ HttpResponse RestClient::Request(const HttpRequest& request) {
 #ifdef HAVE_CURL
     CURL* curl = curl_easy_init();
     if (!curl) {
-        failed_requests_++;
+        failed_requests_.fetch_add(1);
         response.error_message = "Failed to initialize CURL handle";
         LOG_ERROR("Failed to initialize CURL handle");
         return response;
@@ -241,9 +214,9 @@ HttpResponse RestClient::Request(const HttpRequest& request) {
         }
         
         // Set callbacks - Fixed: Use response.body instead of request
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, RestClient::WriteCallback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response.body);
-        curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
+        curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, RestClient::HeaderCallback);
         curl_easy_setopt(curl, CURLOPT_HEADERDATA, &response.headers);
         
         // Set timeouts
@@ -290,11 +263,11 @@ HttpResponse RestClient::Request(const HttpRequest& request) {
         
         // Check for errors
         if (result != CURLE_OK) {
-            failed_requests_++;
+            failed_requests_.fetch_add(1);
             response.error_message = curl_easy_strerror(result);
             LOG_ERROR("CURL request failed: {} ({})", curl_easy_strerror(result), result);
         } else {
-            successful_requests_++;
+            successful_requests_.fetch_add(1);
             if (response_code >= 400) {
                 LOG_WARNING("HTTP error {}: {}", response_code, request.url);
             }
@@ -304,7 +277,7 @@ HttpResponse RestClient::Request(const HttpRequest& request) {
                  response_code, response.body.length());
         
     } catch (const std::exception& e) {
-        failed_requests_++;
+        failed_requests_.fetch_add(1);
         response.error_message = e.what();
         LOG_ERROR("Exception during HTTP request: {}", e.what());
         curl_easy_cleanup(curl);
@@ -312,7 +285,7 @@ HttpResponse RestClient::Request(const HttpRequest& request) {
     
 #else
     // Fallback implementation without libcurl
-    failed_requests_++;
+    failed_requests_.fetch_add(1);
     response.error_message = "libcurl not available";
     LOG_ERROR("libcurl not available - cannot perform HTTP request to: {}", request.url);
 #endif
@@ -346,7 +319,7 @@ void RestClient::ClearHeaders() {
     headers_.clear();
 }
 
-void RestClient::SetDefaultTimeout(int timeout_ms) {
+void RestClient::SetDefaultTimeout(long timeout_ms) {
     default_timeout_ms_ = timeout_ms;
 }
 
@@ -363,29 +336,31 @@ void RestClient::SetFollowRedirects(bool follow, int max_redirects) {
     max_redirects_ = max_redirects;
 }
 
-void RestClient::SetConnectTimeout(int timeout_ms) {
+void RestClient::SetConnectTimeout(long timeout_ms) {
     connect_timeout_ms_ = timeout_ms;
 }
 
 
 
 double RestClient::GetErrorRate() const {
-    if (total_requests_ == 0) return 0.0;
-    return static_cast<double>(failed_requests_) / total_requests_ * 100.0;
+    long long total = total_requests_.load();
+    if (total == 0) return 0.0;
+    return static_cast<double>(failed_requests_.load()) / total * 100.0;
 }
 
 void RestClient::ResetStatistics() {
-    total_requests_ = 0;
-    successful_requests_ = 0;
-    failed_requests_ = 0;
+    total_requests_.store(0);
+    successful_requests_.store(0);
+    failed_requests_.store(0);
+    std::lock_guard<std::mutex> lock(stats_mutex_);
     average_response_time_ms_ = 0.0;
 }
 
 void RestClient::LogStatistics() const {
     LOG_INFO("=== RestClient Statistics ===");
-    LOG_INFO("Total requests: {}", total_requests_);
-    LOG_INFO("Successful requests: {}", successful_requests_);
-    LOG_INFO("Failed requests: {}", failed_requests_);
+    LOG_INFO("Total requests: {}", total_requests_.load());
+    LOG_INFO("Successful requests: {}", successful_requests_.load());
+    LOG_INFO("Failed requests: {}", failed_requests_.load());
     LOG_INFO("Error rate: {:.2f}%", GetErrorRate());
     LOG_INFO("Average response time: {:.2f} ms", GetAverageResponseTime());
     LOG_INFO("Base URL: {}", base_url_);
@@ -485,7 +460,7 @@ void RestClient::UpdateStatistics(const HttpResponse& response) {
     std::lock_guard<std::mutex> lock(stats_mutex_);
     
     // Update average response time using exponential moving average
-    if (total_requests_ == 1) {
+    if (total_requests_.load() == 1) {
         average_response_time_ms_ = response.response_time_ms;
     } else {
         const double alpha = 0.1; // Smoothing factor
@@ -602,6 +577,35 @@ void RestClientManager::Cleanup() {
         instance_.reset();
         CurlGlobalManager::Cleanup();
     }
+}
+
+// RestClient static callback methods
+size_t RestClient::WriteCallback(void* contents, size_t size, size_t nmemb, std::string* data) {
+    size_t total_size = size * nmemb;
+    data->append((char*)contents, total_size);
+    return total_size;
+}
+
+size_t RestClient::HeaderCallback(char* buffer, size_t size, size_t nitems, 
+                                 std::map<std::string, std::string>* headers) {
+    size_t total_size = size * nitems;
+    std::string header(buffer, total_size);
+    
+    size_t pos = header.find(':');
+    if (pos != std::string::npos) {
+        std::string key = header.substr(0, pos);
+        std::string value = header.substr(pos + 1);
+        
+        // Trim whitespace
+        key.erase(0, key.find_first_not_of(" \t"));
+        key.erase(key.find_last_not_of(" \t\r\n") + 1);
+        value.erase(0, value.find_first_not_of(" \t"));
+        value.erase(value.find_last_not_of(" \t\r\n") + 1);
+        
+        (*headers)[key] = value;
+    }
+    
+    return total_size;
 }
 
 } // namespace ats 

@@ -135,13 +135,13 @@ std::vector<std::string> BinanceExchange::GetSupportedSymbols() {
         
         // Parse exchange info and extract symbols
         auto json = ats::json::ParseJson(response);
-        auto symbols_array = ats::json::GetValue(json, "symbols");
+        auto symbols_array = json["symbols"];
         
         std::vector<std::string> supported_symbols;
-        if (ats::json::IsArray(symbols_array)) {
+        if (symbols_array.is_array()) {
             for (const auto& symbol_info : symbols_array) {
-                if (ats::json::IsObject(symbol_info)) {
-                    auto symbol_name = ats::json::GetString(ats::json::GetValue(symbol_info, "symbol"));
+                if (symbol_info.is_object()) {
+                    auto symbol_name = symbol_info["symbol"].get<std::string>();
                     supported_symbols.push_back(ConvertSymbolBack(symbol_name));
                 }
             }
@@ -165,16 +165,16 @@ std::vector<Balance> BinanceExchange::GetBalances() {
         
         // Parse balances from response
         auto json = ats::json::ParseJson(response);
-        auto balances_array = ats::json::GetValue(json, "balances");
+        auto balances_array = json["balances"];
         
         std::vector<Balance> balances;
-        if (ats::json::IsArray(balances_array)) {
+        if (balances_array.is_array()) {
             for (const auto& balance_info : balances_array) {
-                if (ats::json::IsObject(balance_info)) {
+                if (balance_info.is_object()) {
                     Balance balance;
-                    balance.asset = ats::json::GetString(ats::json::GetValue(balance_info, "asset"));
-                    balance.free = ats::json::GetNumber(ats::json::GetValue(balance_info, "free"));
-                    balance.locked = ats::json::GetNumber(ats::json::GetValue(balance_info, "locked"));
+                    balance.asset = balance_info["asset"].get<std::string>();
+                    balance.free = std::stod(balance_info["free"].get<std::string>());
+                    balance.locked = std::stod(balance_info["locked"].get<std::string>());
                     
                     if (balance.total() > 0) {
                         balances.push_back(balance);
@@ -227,7 +227,7 @@ std::string BinanceExchange::PlaceOrder(const std::string& symbol, const std::st
         
         // Parse order ID from response
         auto json = ats::json::ParseJson(response);
-        auto order_id = ats::json::GetString(ats::json::GetValue(json, "orderId"));
+        auto order_id = std::to_string(json["orderId"].get<long long>());
         
         LOG_INFO("Order placed successfully: {}", order_id);
         return order_id;
@@ -281,10 +281,10 @@ std::vector<Order> BinanceExchange::GetOpenOrders(const std::string& symbol) {
         std::vector<Order> orders;
         auto json = ats::json::ParseJson(response);
         
-        if (ats::json::IsArray(json)) {
+        if (json.is_array()) {
             for (const auto& order_info : json) {
-                if (ats::json::IsObject(order_info)) {
-                    orders.push_back(ParseOrder(ats::json::JsonToString(order_info)));
+                if (order_info.is_object()) {
+                    orders.push_back(ParseOrder(order_info.dump()));
                 }
             }
         }
@@ -450,29 +450,29 @@ void BinanceExchange::OnWebSocketMessage(const std::string& message) {
         auto json = ats::json::ParseJson(message);
         
         // Handle different message types based on stream name
-        if (ats::json::HasKey(json, "stream")) {
-            std::string stream = ats::json::GetString(ats::json::GetValue(json, "stream"));
+        if (json.contains("stream")) {
+            std::string stream = json["stream"].get<std::string>();
             
             if (stream.find("@ticker") != std::string::npos) {
                 // Price update
-                auto data = ats::json::GetValue(json, "data");
-                std::string symbol = ats::json::GetString(ats::json::GetValue(data, "s"));
+                auto data = json["data"];
+                std::string symbol = data["s"].get<std::string>();
                 std::string standard_symbol = ConvertSymbolBack(symbol);
                 
                 auto it = price_callbacks_.find(standard_symbol);
                 if (it != price_callbacks_.end()) {
-                    Price price = ParsePrice(ats::json::JsonToString(data), standard_symbol);
+                    Price price = ParsePrice(data.dump(), standard_symbol);
                     it->second(price);
                 }
             } else if (stream.find("@depth") != std::string::npos) {
                 // Order book update
-                auto data = ats::json::GetValue(json, "data");
-                std::string symbol = ats::json::GetString(ats::json::GetValue(data, "s"));
+                auto data = json["data"];
+                std::string symbol = data["s"].get<std::string>();
                 std::string standard_symbol = ConvertSymbolBack(symbol);
                 
                 auto it = orderbook_callbacks_.find(standard_symbol);
                 if (it != orderbook_callbacks_.end()) {
-                    OrderBook orderbook = ParseOrderBook(ats::json::JsonToString(data), standard_symbol);
+                    OrderBook orderbook = ParseOrderBook(data.dump(), standard_symbol);
                     it->second(orderbook);
                 }
             }
@@ -499,17 +499,17 @@ Price BinanceExchange::ParsePrice(const std::string& json_data, const std::strin
     try {
         auto json = ats::json::ParseJson(json_data);
         
-        if (ats::json::HasKey(json, "bidPrice")) {
-            price.bid = ats::json::GetNumber(ats::json::GetValue(json, "bidPrice"));
+        if (json.contains("bidPrice")) {
+            price.bid = std::stod(json["bidPrice"].get<std::string>());
         }
-        if (ats::json::HasKey(json, "askPrice")) {
-            price.ask = ats::json::GetNumber(ats::json::GetValue(json, "askPrice"));
+        if (json.contains("askPrice")) {
+            price.ask = std::stod(json["askPrice"].get<std::string>());
         }
-        if (ats::json::HasKey(json, "price")) {
-            price.last = ats::json::GetNumber(ats::json::GetValue(json, "price"));
+        if (json.contains("price")) {
+            price.last = std::stod(json["price"].get<std::string>());
         }
-        if (ats::json::HasKey(json, "volume")) {
-            price.volume = ats::json::GetNumber(ats::json::GetValue(json, "volume"));
+        if (json.contains("volume")) {
+            price.volume = std::stod(json["volume"].get<std::string>());
         }
         
         // Set timestamp
@@ -531,32 +531,28 @@ OrderBook BinanceExchange::ParseOrderBook(const std::string& json_data, const st
         auto json = ats::json::ParseJson(json_data);
         
         // Parse bids
-        if (ats::json::HasKey(json, "bids")) {
-            auto bids_array = ats::json::GetValue(json, "bids");
-            if (ats::json::IsArray(bids_array)) {
+        if (json.contains("bids")) {
+            auto bids_array = json["bids"];
+            if (bids_array.is_array()) {
                 for (const auto& bid_data : bids_array) {
-                    if (ats::json::IsArray(bid_data)) {
-                        if (ats::json::GetSize(bid_data) >= 2) {
-                            double price = ats::json::GetNumber(bid_data[0]);
-                            double volume = ats::json::GetNumber(bid_data[1]);
-                            orderbook.bids.emplace_back(price, volume);
-                        }
+                    if (bid_data.is_array() && bid_data.size() >= 2) {
+                        double price = std::stod(bid_data[0].get<std::string>());
+                        double volume = std::stod(bid_data[1].get<std::string>());
+                        orderbook.bids.emplace_back(price, volume);
                     }
                 }
             }
         }
         
         // Parse asks
-        if (ats::json::HasKey(json, "asks")) {
-            auto asks_array = ats::json::GetValue(json, "asks");
-            if (ats::json::IsArray(asks_array)) {
+        if (json.contains("asks")) {
+            auto asks_array = json["asks"];
+            if (asks_array.is_array()) {
                 for (const auto& ask_data : asks_array) {
-                    if (ats::json::IsArray(ask_data)) {
-                        if (ats::json::GetSize(ask_data) >= 2) {
-                            double price = ats::json::GetNumber(ask_data[0]);
-                            double volume = ats::json::GetNumber(ask_data[1]);
-                            orderbook.asks.emplace_back(price, volume);
-                        }
+                    if (ask_data.is_array() && ask_data.size() >= 2) {
+                        double price = std::stod(ask_data[0].get<std::string>());
+                        double volume = std::stod(ask_data[1].get<std::string>());
+                        orderbook.asks.emplace_back(price, volume);
                     }
                 }
             }
@@ -579,21 +575,21 @@ Order BinanceExchange::ParseOrder(const std::string& json_data) {
     try {
         auto json = ats::json::ParseJson(json_data);
         
-        order.order_id = ats::json::GetString(ats::json::GetValue(json, "orderId"));
+        order.order_id = std::to_string(json["orderId"].get<long long>());
         order.exchange = "binance";
-        order.symbol = ConvertSymbolBack(ats::json::GetString(ats::json::GetValue(json, "symbol")));
+        order.symbol = ConvertSymbolBack(json["symbol"].get<std::string>());
         
-        std::string side = ats::json::GetString(ats::json::GetValue(json, "side"));
+        std::string side = json["side"].get<std::string>();
         order.side = (side == "BUY") ? OrderSide::BUY : OrderSide::SELL;
         
-        std::string type = ats::json::GetString(ats::json::GetValue(json, "type"));
+        std::string type = json["type"].get<std::string>();
         order.type = (type == "MARKET") ? OrderType::MARKET : OrderType::LIMIT;
         
-        order.quantity = ats::json::GetNumber(ats::json::GetValue(json, "origQty"));
-        order.price = ats::json::GetNumber(ats::json::GetValue(json, "price"));
-        order.filled_quantity = ats::json::GetNumber(ats::json::GetValue(json, "executedQty"));
+        order.quantity = std::stod(json["origQty"].get<std::string>());
+        order.price = std::stod(json["price"].get<std::string>());
+        order.filled_quantity = std::stod(json["executedQty"].get<std::string>());
         
-        std::string status = ats::json::GetString(ats::json::GetValue(json, "status"));
+        std::string status = json["status"].get<std::string>();
         if (status == "NEW") order.status = OrderStatus::NEW;
         else if (status == "PARTIALLY_FILLED") order.status = OrderStatus::PARTIAL;
         else if (status == "FILLED") order.status = OrderStatus::FILLED;
@@ -601,7 +597,7 @@ Order BinanceExchange::ParseOrder(const std::string& json_data) {
         else if (status == "REJECTED") order.status = OrderStatus::REJECTED;
         else order.status = OrderStatus::PENDING;
         
-        order.timestamp = static_cast<long long>(ats::json::GetNumber(ats::json::GetValue(json, "time")));
+        order.timestamp = json["time"].get<long long>();
         
     } catch (const std::exception& e) {
         LOG_ERROR("Error parsing order data: {}", e.what());
@@ -616,9 +612,9 @@ Balance BinanceExchange::ParseBalance(const std::string& json_data) {
     try {
         auto json = ats::json::ParseJson(json_data);
         
-        balance.asset = ats::json::GetString(ats::json::GetValue(json, "asset"));
-        balance.free = ats::json::GetNumber(ats::json::GetValue(json, "free"));
-        balance.locked = ats::json::GetNumber(ats::json::GetValue(json, "locked"));
+        balance.asset = json["asset"].get<std::string>();
+        balance.free = std::stod(json["free"].get<std::string>());
+        balance.locked = std::stod(json["locked"].get<std::string>());
         
     } catch (const std::exception& e) {
         LOG_ERROR("Error parsing balance data: {}", e.what());

@@ -70,9 +70,9 @@ private:
     
     // Statistics
     mutable std::mutex stats_mutex_;
-    long long total_requests_;
-    long long successful_requests_;
-    long long failed_requests_;
+    std::atomic<long long> total_requests_;
+    std::atomic<long long> successful_requests_;
+    std::atomic<long long> failed_requests_;
     double average_response_time_ms_;
     
     // Additional configuration
@@ -129,6 +129,8 @@ public:
     double GetAverageResponseTime() const;
     double GetSuccessRate() const;
     double GetErrorRate() const;
+    void ResetStatistics();
+    void LogStatistics() const;
     
     // Health check
     bool IsHealthy() const;
