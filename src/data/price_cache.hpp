@@ -10,7 +10,7 @@
 
 namespace ats {
 
-// Cache entry with timestamp and access tracking
+// Cache entry with timestamp and access tracking - fixed atomic handling
 template<typename T>
 struct CacheEntry {
     T data;
@@ -23,38 +23,41 @@ struct CacheEntry {
                   last_access(std::chrono::steady_clock::now()),
                   access_count(0) {}
     
-    CacheEntry(const T& d) : data(d), 
+    explicit CacheEntry(const T& d) : data(d), 
                             timestamp(std::chrono::steady_clock::now()),
                             last_access(std::chrono::steady_clock::now()),
                             access_count(1) {}
     
-    CacheEntry(T&& d) : data(std::move(d)), 
+    explicit CacheEntry(T&& d) : data(std::move(d)), 
                        timestamp(std::chrono::steady_clock::now()),
                        last_access(std::chrono::steady_clock::now()),
                        access_count(1) {}
     
-    // Delete copy constructor and assignment to prevent atomic copy issues
+    // Delete copy operations to prevent atomic copy issues
     CacheEntry(const CacheEntry& other) = delete;
     CacheEntry& operator=(const CacheEntry& other) = delete;
     
-    // Move constructor
-    CacheEntry(CacheEntry&& other) noexcept : data(std::move(other.data)),
-                                             timestamp(other.timestamp),
-                                             last_access(other.last_access),
-                                             access_count(other.access_count.load()) {
-        other.access_count = 0;
-    }
+    // Safe move constructor - uses exchange to avoid copy
+    CacheEntry(CacheEntry&& other) noexcept 
+        : data(std::move(other.data)),
+          timestamp(other.timestamp),
+          last_access(other.last_access),
+          access_count(other.access_count.exchange(0)) {}
     
-    // Move assignment
+    // Safe move assignment
     CacheEntry& operator=(CacheEntry&& other) noexcept {
         if (this != &other) {
             data = std::move(other.data);
             timestamp = other.timestamp;
             last_access = other.last_access;
-            access_count = other.access_count.load();
-            other.access_count = 0;
+            access_count.store(other.access_count.exchange(0));
         }
         return *this;
+    }
+    
+    void IncrementAccess() {
+        access_count.fetch_add(1);
+        last_access = std::chrono::steady_clock::now();
     }
 };
 
@@ -84,19 +87,18 @@ public:
         
         auto it = cache_map_.find(key);
         if (it == cache_map_.end()) {
-            misses_++;
+            misses_.fetch_add(1);
             return false;
         }
         
         // Move to front (most recently used)
         cache_list_.splice(cache_list_.begin(), cache_list_, it->second);
         
-        // Update access info
-        it->second->second.last_access = std::chrono::steady_clock::now();
-        it->second->second.access_count++;
+        // Update access info safely
+        it->second->second.IncrementAccess();
         
         value = it->second->second.data;
-        hits_++;
+        hits_.fetch_add(1);
         return true;
     }
     
@@ -106,8 +108,6 @@ public:
         
         auto it = cache_map_.find(key);
         if (it == cache_map_.end()) {
-            // Cannot modify mutable atomic member in const method
-            // misses_++;
             return false;
         }
         
@@ -124,8 +124,7 @@ public:
             // Update existing entry
             it->second->second.data = value;
             it->second->second.timestamp = std::chrono::steady_clock::now();
-            it->second->second.last_access = std::chrono::steady_clock::now();
-            it->second->second.access_count++;
+            it->second->second.IncrementAccess();
             
             // Move to front
             cache_list_.splice(cache_list_.begin(), cache_list_, it->second);
@@ -142,7 +141,7 @@ public:
             --last;
             cache_map_.erase(last->first);
             cache_list_.pop_back();
-            evictions_++;
+            evictions_.fetch_add(1);
         }
     }
     
@@ -202,8 +201,8 @@ public:
         std::vector<Key> keys;
         keys.reserve(cache_list_.size());
         
-        for (const auto& entry : cache_list_) {
-            keys.push_back(entry.first);
+        for (const auto& pair : cache_list_) {
+            keys.push_back(pair.first);
         }
         return keys;
     }
@@ -218,9 +217,9 @@ public:
     long long GetEvictions() const { return evictions_.load(); }
     
     void ResetStatistics() {
-        hits_ = 0;
-        misses_ = 0;
-        evictions_ = 0;
+        hits_.store(0);
+        misses_.store(0);
+        evictions_.store(0);
     }
 };
 

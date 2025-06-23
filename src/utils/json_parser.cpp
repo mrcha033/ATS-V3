@@ -22,7 +22,9 @@ JsonValue JsonParser::ParseString(const std::string& json) {
 }
 
 std::string JsonParser::Stringify(const JsonValue& value, bool pretty, int indent) {
-    // Simple stringify implementation
+    std::string indent_str = pretty ? std::string(indent, ' ') : "";
+    std::string newline = pretty ? "\n" : "";
+    
     if (std::holds_alternative<std::nullptr_t>(value)) {
         return "null";
     } else if (std::holds_alternative<bool>(value)) {
@@ -30,11 +32,54 @@ std::string JsonParser::Stringify(const JsonValue& value, bool pretty, int inden
     } else if (std::holds_alternative<int>(value)) {
         return std::to_string(std::get<int>(value));
     } else if (std::holds_alternative<double>(value)) {
-        return std::to_string(std::get<double>(value));
+        std::ostringstream oss;
+        oss << std::get<double>(value);
+        return oss.str();
     } else if (std::holds_alternative<std::string>(value)) {
-        return "\"" + std::get<std::string>(value) + "\"";
+        std::string str = std::get<std::string>(value);
+        // Escape special characters
+        std::string escaped = "\"";
+        for (char c : str) {
+            switch (c) {
+                case '"': escaped += "\\\""; break;
+                case '\\': escaped += "\\\\"; break;
+                case '\b': escaped += "\\b"; break;
+                case '\f': escaped += "\\f"; break;
+                case '\n': escaped += "\\n"; break;
+                case '\r': escaped += "\\r"; break;
+                case '\t': escaped += "\\t"; break;
+                default: escaped += c; break;
+            }
+        }
+        escaped += "\"";
+        return escaped;
+    } else if (std::holds_alternative<std::vector<JsonValue>>(value)) {
+        auto arr = std::get<std::vector<JsonValue>>(value);
+        std::string result = "[";
+        for (size_t i = 0; i < arr.size(); ++i) {
+            if (i > 0) result += ",";
+            if (pretty) result += newline + std::string(indent + 2, ' ');
+            result += Stringify(arr[i], pretty, indent + 2);
+        }
+        if (pretty && !arr.empty()) result += newline + indent_str;
+        result += "]";
+        return result;
+    } else if (std::holds_alternative<std::unordered_map<std::string, JsonValue>>(value)) {
+        auto obj = std::get<std::unordered_map<std::string, JsonValue>>(value);
+        std::string result = "{";
+        bool first = true;
+        for (const auto& pair : obj) {
+            if (!first) result += ",";
+            first = false;
+            if (pretty) result += newline + std::string(indent + 2, ' ');
+            result += "\"" + pair.first + "\":" + (pretty ? " " : "");
+            result += Stringify(pair.second, pretty, indent + 2);
+        }
+        if (pretty && !obj.empty()) result += newline + indent_str;
+        result += "}";
+        return result;
     }
-    return "{}"; // Simplified for arrays/objects
+    return "null";
 }
 
 char JsonParser::Current() {
@@ -179,6 +224,21 @@ std::string JsonParser::ParseStringValue() {
                 case 'n': result += '\n'; break;
                 case 'r': result += '\r'; break;
                 case 't': result += '\t'; break;
+                case 'u': {
+                    // Unicode escape sequence \uXXXX
+                    Advance();
+                    std::string hex;
+                    for (int i = 0; i < 4; ++i) {
+                        if (IsAtEnd() || !std::isxdigit(Current())) {
+                            ThrowError("Invalid unicode escape sequence");
+                        }
+                        hex += Current();
+                        Advance();
+                    }
+                    // For simplicity, just add the unicode sequence as-is
+                    result += "\\u" + hex;
+                    continue; // Skip the Advance() at the end
+                }
                 default:
                     result += escaped;
                     break;
@@ -198,23 +258,72 @@ std::string JsonParser::ParseStringValue() {
 }
 
 JsonValue JsonParser::ParseNumber() {
-    std::string number;
+    size_t start = pos_;
+    bool is_negative = false;
+    bool has_decimal = false;
+    bool has_exponent = false;
     
+    // Handle negative sign
     if (Current() == '-') {
-        number += Current();
+        is_negative = true;
         Advance();
     }
     
-    while (!IsAtEnd() && (std::isdigit(Current()) || Current() == '.')) {
-        number += Current();
-        Advance();
+    // Parse integer part
+    if (!std::isdigit(Current())) {
+        ThrowError("Invalid number format");
     }
     
-    if (number.find('.') != std::string::npos) {
-        return JsonValue(std::stod(number));
+    if (Current() == '0') {
+        Advance();
     } else {
-        return JsonValue(std::stoi(number));
+        while (!IsAtEnd() && std::isdigit(Current())) {
+            Advance();
+        }
     }
+    
+    // Parse decimal part
+    if (!IsAtEnd() && Current() == '.') {
+        has_decimal = true;
+        Advance();
+        if (!std::isdigit(Current())) {
+            ThrowError("Invalid number format: expected digit after decimal point");
+        }
+        while (!IsAtEnd() && std::isdigit(Current())) {
+            Advance();
+        }
+    }
+    
+    // Parse exponent part
+    if (!IsAtEnd() && (Current() == 'e' || Current() == 'E')) {
+        has_exponent = true;
+        Advance();
+        if (!IsAtEnd() && (Current() == '+' || Current() == '-')) {
+            Advance();
+        }
+        if (!std::isdigit(Current())) {
+            ThrowError("Invalid number format: expected digit in exponent");
+        }
+        while (!IsAtEnd() && std::isdigit(Current())) {
+            Advance();
+        }
+    }
+    
+    std::string number_str = json_text_.substr(start, pos_ - start);
+    
+    try {
+        if (has_decimal || has_exponent) {
+            double value = std::stod(number_str);
+            return JsonValue(value);
+        } else {
+            int value = std::stoi(number_str);
+            return JsonValue(value);
+        }
+    } catch (const std::exception&) {
+        ThrowError("Invalid number format: " + number_str);
+    }
+    
+    return JsonValue(nullptr);
 }
 
 JsonValue JsonParser::ParseLiteral() {
@@ -227,14 +336,17 @@ JsonValue JsonParser::ParseLiteral() {
     } else if (json_text_.substr(pos_, 4) == "null") {
         pos_ += 4;
         return JsonValue(nullptr);
+    } else {
+        ThrowError("Invalid literal");
     }
     
-    ThrowError("Invalid literal");
     return JsonValue(nullptr);
 }
 
 void JsonParser::ThrowError(const std::string& message) {
-    throw JsonParseError("JSON Parse Error at position " + std::to_string(pos_) + ": " + message);
+    std::ostringstream oss;
+    oss << "JSON Parse Error at position " << pos_ << ": " << message;
+    throw JsonParseError(oss.str());
 }
 
 namespace json {
@@ -279,8 +391,7 @@ bool AsBool(const JsonValue& value, bool defaultValue) {
 int AsInt(const JsonValue& value, int defaultValue) {
     if (IsInt(value)) {
         return std::get<int>(value);
-    }
-    if (IsDouble(value)) {
+    } else if (IsDouble(value)) {
         return static_cast<int>(std::get<double>(value));
     }
     return defaultValue;
@@ -289,8 +400,7 @@ int AsInt(const JsonValue& value, int defaultValue) {
 double AsDouble(const JsonValue& value, double defaultValue) {
     if (IsDouble(value)) {
         return std::get<double>(value);
-    }
-    if (IsInt(value)) {
+    } else if (IsInt(value)) {
         return static_cast<double>(std::get<int>(value));
     }
     return defaultValue;
@@ -307,14 +417,14 @@ std::vector<JsonValue> AsArray(const JsonValue& value) {
     if (IsArray(value)) {
         return std::get<std::vector<JsonValue>>(value);
     }
-    return std::vector<JsonValue>();
+    return {};
 }
 
 std::unordered_map<std::string, JsonValue> AsObject(const JsonValue& value) {
     if (IsObject(value)) {
         return std::get<std::unordered_map<std::string, JsonValue>>(value);
     }
-    return std::unordered_map<std::string, JsonValue>();
+    return {};
 }
 
 // Path access functions
@@ -323,30 +433,22 @@ JsonValue GetPath(const JsonValue& root, const std::string& path) {
         return root;
     }
     
-    std::vector<std::string> parts;
     std::istringstream iss(path);
-    std::string part;
-    
-    while (std::getline(iss, part, '.')) {
-        if (!part.empty()) {
-            parts.push_back(part);
-        }
-    }
-    
+    std::string segment;
     JsonValue current = root;
     
-    for (const auto& key : parts) {
-        if (!IsObject(current)) {
+    while (std::getline(iss, segment, '.')) {
+        if (IsObject(current)) {
+            auto obj = AsObject(current);
+            auto it = obj.find(segment);
+            if (it != obj.end()) {
+                current = it->second;
+            } else {
+                return JsonValue(nullptr);
+            }
+        } else {
             return JsonValue(nullptr);
         }
-        
-        auto obj = AsObject(current);
-        auto it = obj.find(key);
-        if (it == obj.end()) {
-            return JsonValue(nullptr);
-        }
-        
-        current = it->second;
     }
     
     return current;

@@ -9,8 +9,10 @@
 namespace ats {
 
 std::unique_ptr<Logger> Logger::instance_ = nullptr;
+std::mutex Logger::instance_mutex_;
 
 void Logger::Initialize() {
+    std::lock_guard<std::mutex> lock(instance_mutex_);
     if (!instance_) {
         instance_ = std::unique_ptr<Logger>(new Logger());
         
@@ -20,8 +22,12 @@ void Logger::Initialize() {
 }
 
 Logger& Logger::Instance() {
+    std::lock_guard<std::mutex> lock(instance_mutex_);
     if (!instance_) {
-        Initialize();
+        instance_ = std::unique_ptr<Logger>(new Logger());
+        
+        // Create logs directory if it doesn't exist
+        std::filesystem::create_directories("logs");
     }
     return *instance_;
 }

@@ -79,16 +79,24 @@ RiskAssessment RiskManager::AssessOpportunity(const ArbitrageOpportunity& opport
             return assessment;
         }
         
-        // Check minimum profit
-        if (opportunity.net_profit_percent < limits_.min_reward_risk_ratio) {
-            assessment.rejections.push_back("Profit below minimum threshold");
-            return assessment;
-        }
-        
-        // Check position size limits
+        // Check reward:risk ratio
         double max_position = CalculateMaxPositionSize(opportunity);
         if (max_position <= 0) {
             assessment.rejections.push_back("Position size limit exceeded");
+            return assessment;
+        }
+        
+        double reward_risk_ratio = CalculateRewardRiskRatio(opportunity, max_position);
+        if (reward_risk_ratio < limits_.min_reward_risk_ratio) {
+            assessment.rejections.push_back("Reward:risk ratio below minimum threshold");
+            LOG_DEBUG("Opportunity rejected: reward:risk ratio {} < minimum {}", 
+                     reward_risk_ratio, limits_.min_reward_risk_ratio);
+            return assessment;
+        }
+        
+        // Check minimum profit threshold after reward:risk validation
+        if (opportunity.net_profit_percent < 0.05) { // 0.05% minimum profit
+            assessment.rejections.push_back("Profit below minimum threshold");
             return assessment;
         }
         

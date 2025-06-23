@@ -11,6 +11,15 @@
 #include "monitoring/system_monitor.hpp"
 #include "monitoring/health_check.hpp"
 
+// Global atomic flag for shutdown - moved outside namespace for proper linkage
+std::atomic<bool> g_shutdown_requested{false};
+
+// Signal handler for graceful shutdown
+void SignalHandler(int signal) {
+    // Only use async-signal-safe operations in signal handler
+    g_shutdown_requested.store(true);
+}
+
 namespace ats {
 
 class Application {
@@ -123,22 +132,13 @@ public:
 // Global application instance
 std::unique_ptr<Application> g_app;
 
-// Global atomic flag for shutdown
-std::atomic<bool> g_shutdown_requested{false};
-
-// Signal handler for graceful shutdown
-void SignalHandler(int signal) {
-    // Only use async-signal-safe operations in signal handler
-    g_shutdown_requested.store(true);
-}
-
 } // namespace ats
 
 int main(int argc, char* argv[]) {
     try {
         // Install signal handlers
-        signal(SIGINT, ats::SignalHandler);
-        signal(SIGTERM, ats::SignalHandler);
+        signal(SIGINT, SignalHandler);
+        signal(SIGTERM, SignalHandler);
         
         // Create and initialize application
         ats::g_app = std::make_unique<ats::Application>();

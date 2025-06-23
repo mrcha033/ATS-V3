@@ -17,7 +17,7 @@ PriceCache::PriceCache(size_t max_prices, size_t max_orderbooks)
 }
 
 PriceCache::~PriceCache() {
-    running_ = false;
+    running_.store(false);
     cleanup_cv_.notify_all(); // Wake up cleanup thread immediately
     if (cleanup_thread_.joinable()) {
         cleanup_thread_.join();
@@ -202,19 +202,33 @@ std::string PriceCache::MakeKey(const std::string& exchange, const std::string& 
 }
 
 void PriceCache::CleanupLoop() {
-    while (running_) {
-        // Use condition variable to allow fast shutdown
-        std::unique_lock<std::mutex> lock(cleanup_mutex_);
-        cleanup_cv_.wait_for(lock, std::chrono::seconds(30), [this] { return !running_; });
-        
-        if (!running_) break;
-        
+    LOG_DEBUG("Price cache cleanup thread started");
+    
+    while (running_.load()) {
         try {
-            ForceCleanup();
+            // Wait for cleanup interval or shutdown signal
+            std::unique_lock<std::mutex> lock(cleanup_mutex_);
+            cleanup_cv_.wait_for(lock, std::chrono::minutes(1), [this] { 
+                return !running_.load(); 
+            });
+            
+            if (!running_.load()) {
+                break;
+            }
+            
+            // Perform cleanup
+            price_cache_.CleanupExpired(price_ttl_);
+            orderbook_cache_.CleanupExpired(orderbook_ttl_);
+            
+            LOG_DEBUG("Cache cleanup completed - Prices: {}, OrderBooks: {}", 
+                     GetPriceCacheSize(), GetOrderBookCacheSize());
+                     
         } catch (const std::exception& e) {
-            LOG_ERROR("Error in cache cleanup: {}", e.what());
+            LOG_ERROR("Error in cache cleanup loop: {}", e.what());
         }
     }
+    
+    LOG_DEBUG("Price cache cleanup thread stopped");
 }
 
 // PriceCacheManager Implementation
@@ -231,16 +245,14 @@ PriceCache& PriceCacheManager::Instance() {
 
 void PriceCacheManager::Initialize(size_t max_prices, size_t max_orderbooks) {
     std::lock_guard<std::mutex> lock(instance_mutex_);
-    if (!instance_) {
-        instance_ = std::make_unique<PriceCache>(max_prices, max_orderbooks);
-    }
+    instance_ = std::make_unique<PriceCache>(max_prices, max_orderbooks);
+    LOG_INFO("PriceCacheManager initialized");
 }
 
 void PriceCacheManager::Cleanup() {
     std::lock_guard<std::mutex> lock(instance_mutex_);
-    if (instance_) {
-        instance_.reset();
-    }
+    instance_.reset();
+    LOG_INFO("PriceCacheManager cleaned up");
 }
 
 } // namespace ats 

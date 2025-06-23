@@ -5,6 +5,10 @@
 #include <functional>
 #include <unordered_map>
 #include <mutex>
+#include <vector>
+#include <queue>
+#include <condition_variable>
+#include <atomic>
 
 #ifdef HAVE_CURL
 #include <curl/curl.h>
@@ -50,6 +54,14 @@ private:
     long default_timeout_ms_;
     bool verify_ssl_;
     
+    // Thread pool for async operations
+    std::vector<std::thread> thread_pool_;
+    std::queue<std::function<void()>> task_queue_;
+    std::mutex queue_mutex_;
+    std::condition_variable queue_cv_;
+    std::atomic<bool> pool_running_;
+    size_t max_pool_size_;
+    
     // Statistics
     mutable std::mutex stats_mutex_;
     long long total_requests_;
@@ -57,18 +69,25 @@ private:
     long long failed_requests_;
     double average_response_time_ms_;
     
+    // Additional configuration
+    mutable std::string last_error_;
+    long connect_timeout_ms_;
+    
 public:
     RestClient();
     ~RestClient();
     
-    // Lifecycle
-    bool Initialize();
-    void Cleanup();
+    // Note: CURL global initialization is handled by RestClientManager
     
     // Configuration
     void SetUserAgent(const std::string& user_agent);
     void SetDefaultTimeout(long timeout_ms);
     void SetSslVerification(bool verify);
+    void SetConnectTimeout(long timeout_ms);
+    
+    // Thread pool management
+    void StartThreadPool(size_t pool_size = 4);
+    void StopThreadPool();
     
     // HTTP Methods
     HttpResponse Get(const std::string& url, 
@@ -115,8 +134,6 @@ private:
     void UpdateStatistics(const HttpResponse& response);
     std::string BuildQueryString(const std::unordered_map<std::string, std::string>& params);
     std::string UrlEncode(const std::string& str);
-    
-    mutable std::string last_error_;
 };
 
 // Global instance for convenience

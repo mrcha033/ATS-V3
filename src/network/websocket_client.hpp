@@ -49,15 +49,19 @@ private:
     StateCallback state_callback_;
     ErrorCallback error_callback_;
     
-    // Reconnection settings
-    std::chrono::seconds reconnect_delay_;
+    // Reconnection settings with exponential backoff
+    std::chrono::seconds base_reconnect_delay_;
+    std::chrono::seconds max_reconnect_delay_;
     int max_reconnect_attempts_;
     std::atomic<int> reconnect_attempts_;
+    double backoff_multiplier_;
+    std::chrono::steady_clock::time_point last_reconnect_attempt_;
     
-    // Message queue for outgoing messages
+    // Message queue for outgoing messages with overflow protection
     std::queue<std::string> outgoing_queue_;
     std::mutex queue_mutex_;
     std::condition_variable queue_cv_;
+    size_t max_queue_size_;
     
     // Statistics
     std::atomic<long long> messages_sent_;
@@ -100,7 +104,7 @@ public:
     void SetStateCallback(StateCallback callback) { state_callback_ = callback; }
     void SetErrorCallback(ErrorCallback callback) { error_callback_ = callback; }
     
-    void SetReconnectDelay(std::chrono::seconds delay) { reconnect_delay_ = delay; }
+    void SetReconnectDelay(std::chrono::seconds delay) { base_reconnect_delay_ = delay; }
     void SetMaxReconnectAttempts(int attempts) { max_reconnect_attempts_ = attempts; }
     void SetMaxMessageSize(size_t size) { max_message_size_ = size; }
     void SetPingInterval(std::chrono::seconds interval) { ping_interval_ = interval; }

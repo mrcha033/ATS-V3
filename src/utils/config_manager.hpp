@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <variant>
 #include <vector>
+#include <shared_mutex>
 #include "../core/types.hpp"
 
 namespace ats {
@@ -14,6 +15,7 @@ class ConfigManager {
 private:
     std::unordered_map<std::string, ConfigValue> config_data_;
     std::string config_file_path_;
+    mutable std::shared_mutex config_mutex_; // Thread-safe access
     
 public:
     ConfigManager() = default;
@@ -23,14 +25,14 @@ public:
     bool ReloadConfig();
     bool SaveConfig(const std::string& file_path = "");
     
-    // Getters with default values
+    // Getters with default values (thread-safe)
     std::string GetString(const std::string& key, const std::string& default_value = "") const;
     int GetInt(const std::string& key, int default_value = 0) const;
     double GetDouble(const std::string& key, double default_value = 0.0) const;
     bool GetBool(const std::string& key, bool default_value = false) const;
     std::vector<std::string> GetStringArray(const std::string& key, const std::vector<std::string>& default_value = {}) const;
     
-    // Setters
+    // Setters (thread-safe)
     void SetString(const std::string& key, const std::string& value);
     void SetInt(const std::string& key, int value);
     void SetDouble(const std::string& key, double value);

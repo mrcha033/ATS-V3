@@ -5,10 +5,12 @@
 #include <sstream>
 #include <algorithm>
 #include <cctype>
+#include <shared_mutex>
 
 namespace ats {
 
 bool ConfigManager::LoadConfig(const std::string& file_path) {
+    std::unique_lock<std::shared_mutex> lock(config_mutex_);
     config_file_path_ = file_path;
     
     std::ifstream file(file_path);
@@ -26,16 +28,19 @@ bool ConfigManager::LoadConfig(const std::string& file_path) {
 }
 
 bool ConfigManager::ReloadConfig() {
+    std::unique_lock<std::shared_mutex> lock(config_mutex_);
     if (config_file_path_.empty()) {
         LOG_ERROR("No config file path set for reload");
         return false;
     }
     
     config_data_.clear();
+    lock.unlock(); // Release lock before calling LoadConfig
     return LoadConfig(config_file_path_);
 }
 
 bool ConfigManager::SaveConfig(const std::string& file_path) {
+    std::shared_lock<std::shared_mutex> lock(config_mutex_);
     std::string target_path = file_path.empty() ? config_file_path_ : file_path;
     
     std::ofstream file(target_path);
@@ -72,32 +77,39 @@ std::vector<std::string> ConfigManager::GetStringArray(const std::string& key, c
 }
 
 void ConfigManager::SetString(const std::string& key, const std::string& value) {
+    std::unique_lock<std::shared_mutex> lock(config_mutex_);
     config_data_[key] = value;
 }
 
 void ConfigManager::SetInt(const std::string& key, int value) {
+    std::unique_lock<std::shared_mutex> lock(config_mutex_);
     config_data_[key] = value;
 }
 
 void ConfigManager::SetDouble(const std::string& key, double value) {
+    std::unique_lock<std::shared_mutex> lock(config_mutex_);
     config_data_[key] = value;
 }
 
 void ConfigManager::SetBool(const std::string& key, bool value) {
+    std::unique_lock<std::shared_mutex> lock(config_mutex_);
     config_data_[key] = value;
 }
 
 void ConfigManager::SetStringArray(const std::string& key, const std::vector<std::string>& value) {
+    std::unique_lock<std::shared_mutex> lock(config_mutex_);
     config_data_[key] = value;
 }
 
 bool ConfigManager::HasKey(const std::string& key) const {
+    std::shared_lock<std::shared_mutex> lock(config_mutex_);
     return config_data_.find(key) != config_data_.end();
 }
 
 bool ConfigManager::ValidateRequiredKeys(const std::vector<std::string>& required_keys) const {
+    std::shared_lock<std::shared_mutex> lock(config_mutex_);
     for (const auto& key : required_keys) {
-        if (!HasKey(key)) {
+        if (config_data_.find(key) == config_data_.end()) {
             LOG_ERROR("Required configuration key missing: {}", key);
             return false;
         }
@@ -108,7 +120,7 @@ bool ConfigManager::ValidateRequiredKeys(const std::vector<std::string>& require
 std::vector<ConfigManager::ExchangeConfig> ConfigManager::GetExchangeConfigs() const {
     std::vector<ExchangeConfig> configs;
     
-    // For now, return hardcoded configs - will be improved with proper JSON parsing
+    // Binance configuration
     ExchangeConfig binance;
     binance.name = GetString("binance.name", "binance");
     binance.api_key = GetString("binance.api_key", "");
@@ -121,6 +133,7 @@ std::vector<ConfigManager::ExchangeConfig> ConfigManager::GetExchangeConfigs() c
     binance.taker_fee = GetDouble("binance.taker_fee", 0.001);
     configs.push_back(binance);
     
+    // Upbit configuration
     ExchangeConfig upbit;
     upbit.name = GetString("upbit.name", "upbit");
     upbit.api_key = GetString("upbit.api_key", "");
@@ -137,7 +150,6 @@ std::vector<ConfigManager::ExchangeConfig> ConfigManager::GetExchangeConfigs() c
 }
 
 std::vector<std::string> ConfigManager::GetTradingPairs() const {
-    // Try to get from config first, fallback to defaults
     return GetStringArray("trading.pairs", {
         "BTC/USDT",
         "ETH/USDT", 
@@ -167,11 +179,11 @@ bool ConfigManager::ParseJson(const std::string& json_content) {
         SetBool("app.debug", false);
         
         if (json_content.empty()) {
-            LOG_WARNING("Empty JSON content, using default configuration");
-            return true;
+            LOG_ERROR("Empty JSON content - configuration file is required");
+            return false;
         }
         
-        // Use proper JSON parser
+        // Parse JSON content
         JsonValue root = JsonParser::ParseString(json_content);
         
         if (!ats::json::IsObject(root)) {
@@ -182,7 +194,18 @@ bool ConfigManager::ParseJson(const std::string& json_content) {
         auto rootObj = ats::json::AsObject(root);
         ParseJsonObject(rootObj, "");
         
-        LOG_INFO("Configuration parsed successfully from JSON");
+        // Validate required configuration keys
+        std::vector<std::string> required_keys = {
+            "app.name",
+            "app.version"
+        };
+        
+        if (!ValidateRequiredKeys(required_keys)) {
+            LOG_ERROR("Required configuration keys are missing");
+            return false;
+        }
+        
+        LOG_INFO("Configuration parsed and validated successfully from JSON");
         return true;
         
     } catch (const JsonParseError& e) {
@@ -197,90 +220,95 @@ bool ConfigManager::ParseJson(const std::string& json_content) {
 }
 
 std::string ConfigManager::ToJson() const {
-    // Simple JSON output - for production, use proper JSON library
-    std::ostringstream oss;
-    oss << "{\n";
-    oss << "  \"app\": {\n";
-    oss << "    \"name\": \"" << GetString("app.name", "ATS V3") << "\",\n";
-    oss << "    \"version\": \"" << GetString("app.version", "1.0.0") << "\",\n";
-    oss << "    \"debug\": " << (GetBool("app.debug", false) ? "true" : "false") << "\n";
-    oss << "  },\n";
-    oss << "  \"arbitrage\": {\n";
-    oss << "    \"min_profit_threshold\": " << GetDouble("arbitrage.min_profit_threshold", 0.001) << ",\n";
-    oss << "    \"max_position_size\": " << GetDouble("arbitrage.max_position_size", 1000.0) << ",\n";
-    oss << "    \"max_risk_per_trade\": " << GetDouble("arbitrage.max_risk_per_trade", 0.02) << "\n";
-    oss << "  }\n";
-    oss << "}\n";
-    return oss.str();
-}
-
-template<typename T>
-T ConfigManager::GetValue(const std::string& key, const T& default_value) const {
-    auto it = config_data_.find(key);
-    if (it != config_data_.end()) {
-        try {
-            return std::get<T>(it->second);
-        } catch (const std::bad_variant_access&) {
-            LOG_WARNING("Type mismatch for config key: {}, using default", key);
-        }
+    std::shared_lock<std::shared_mutex> lock(config_mutex_);
+    
+    // Simple JSON output - basic implementation
+    std::ostringstream json;
+    json << "{\n";
+    
+    bool first = true;
+    for (const auto& pair : config_data_) {
+        if (!first) json << ",\n";
+        first = false;
+        
+        json << "  \"" << pair.first << "\": ";
+        
+        std::visit([&json](const auto& value) {
+            using T = std::decay_t<decltype(value)>;
+            if constexpr (std::is_same_v<T, std::string>) {
+                json << "\"" << value << "\"";
+            } else if constexpr (std::is_same_v<T, bool>) {
+                json << (value ? "true" : "false");
+            } else if constexpr (std::is_arithmetic_v<T>) {
+                json << value;
+            } else if constexpr (std::is_same_v<T, std::vector<std::string>>) {
+                json << "[";
+                for (size_t i = 0; i < value.size(); ++i) {
+                    if (i > 0) json << ", ";
+                    json << "\"" << value[i] << "\"";
+                }
+                json << "]";
+            }
+        }, pair.second);
     }
-    return default_value;
+    
+    json << "\n}";
+    return json.str();
 }
 
 void ConfigManager::ParseJsonObject(const std::unordered_map<std::string, JsonValue>& obj, const std::string& prefix) {
-    try {
-        for (const auto& [key, value] : obj) {
-            std::string full_key = prefix.empty() ? key : prefix + "." + key;
-            ParseJsonValue(full_key, value);
-        }
-    } catch (const std::exception& e) {
-        LOG_ERROR("Error parsing JSON object at prefix '{}': {}", prefix, e.what());
+    for (const auto& pair : obj) {
+        std::string key = prefix.empty() ? pair.first : prefix + "." + pair.first;
+        ParseJsonValue(key, pair.second);
     }
 }
 
 void ConfigManager::ParseJsonValue(const std::string& key, const JsonValue& value) {
-    try {
-        if (ats::json::IsBool(value)) {
-            SetBool(key, ats::json::AsBool(value));
-        }
-        else if (ats::json::IsInt(value)) {
-            SetInt(key, ats::json::AsInt(value));
-        }
-        else if (ats::json::IsDouble(value)) {
-            SetDouble(key, ats::json::AsDouble(value));
-        }
-        else if (ats::json::IsString(value)) {
-            SetString(key, ats::json::AsString(value));
-        }
-        else if (ats::json::IsObject(value)) {
-            auto obj = ats::json::AsObject(value);
-            ParseJsonObject(obj, key);
-        }
-        else if (ats::json::IsArray(value)) {
-            // Handle string arrays
-            auto array = ats::json::AsArray(value);
-            std::vector<std::string> string_array;
-            
-            for (const auto& element : array) {
-                if (ats::json::IsString(element)) {
-                    string_array.push_back(ats::json::AsString(element));
-                } else {
-                    LOG_WARNING("Non-string element in array for key: {}, skipping", key);
-                }
-            }
-            
-            if (!string_array.empty()) {
-                SetStringArray(key, string_array);
-                LOG_INFO("Parsed array config '{}' with {} elements", key, string_array.size());
+    if (ats::json::IsString(value)) {
+        config_data_[key] = ats::json::AsString(value);
+    } else if (ats::json::IsInt(value)) {
+        config_data_[key] = ats::json::AsInt(value);
+    } else if (ats::json::IsDouble(value)) {
+        config_data_[key] = ats::json::AsDouble(value);
+    } else if (ats::json::IsBool(value)) {
+        config_data_[key] = ats::json::AsBool(value);
+    } else if (ats::json::IsArray(value)) {
+        auto arr = ats::json::AsArray(value);
+        std::vector<std::string> string_array;
+        for (const auto& item : arr) {
+            if (ats::json::IsString(item)) {
+                string_array.push_back(ats::json::AsString(item));
             }
         }
-        else if (ats::json::IsNull(value)) {
-            // Skip null values
-            LOG_DEBUG("Null value for config key: {}", key);
-        }
-    } catch (const std::exception& e) {
-        LOG_ERROR("Error parsing JSON value for key '{}': {}", key, e.what());
+        config_data_[key] = string_array;
+    } else if (ats::json::IsObject(value)) {
+        auto obj = ats::json::AsObject(value);
+        ParseJsonObject(obj, key);
     }
 }
+
+template<typename T>
+T ConfigManager::GetValue(const std::string& key, const T& default_value) const {
+    std::shared_lock<std::shared_mutex> lock(config_mutex_);
+    
+    auto it = config_data_.find(key);
+    if (it == config_data_.end()) {
+        return default_value;
+    }
+    
+    try {
+        return std::get<T>(it->second);
+    } catch (const std::bad_variant_access&) {
+        LOG_WARNING("Type mismatch for config key: {}, using default", key);
+        return default_value;
+    }
+}
+
+// Explicit template instantiations
+template std::string ConfigManager::GetValue<std::string>(const std::string&, const std::string&) const;
+template int ConfigManager::GetValue<int>(const std::string&, const int&) const;
+template double ConfigManager::GetValue<double>(const std::string&, const double&) const;
+template bool ConfigManager::GetValue<bool>(const std::string&, const bool&) const;
+template std::vector<std::string> ConfigManager::GetValue<std::vector<std::string>>(const std::string&, const std::vector<std::string>&) const;
 
 } // namespace ats 

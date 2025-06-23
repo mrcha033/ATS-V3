@@ -102,6 +102,8 @@ private:
     bool PingHost(const std::string& host, int timeout_ms = 5000);
     bool CheckFileWritable(const std::string& filepath);
     double GetAvailableDiskSpaceGB(const std::string& path);
+    double GetMemoryUsagePercent();
+    double GetCpuTemperatureC();
 };
 
 } // namespace ats 

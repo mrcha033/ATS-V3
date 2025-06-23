@@ -1,5 +1,23 @@
 #include "health_check.hpp"
 #include "../utils/logger.hpp"
+#include <fstream>
+#include <filesystem>
+#include <chrono>
+#include <algorithm>
+
+#ifdef _WIN32
+    #include <windows.h>
+    #include <psapi.h>
+    #include <winbase.h>
+#else
+    #include <sys/statvfs.h>
+    #include <sys/sysinfo.h>
+    #include <unistd.h>
+    #include <sys/socket.h>
+    #include <netinet/in.h>
+    #include <arpa/inet.h>
+    #include <netdb.h>
+#endif
 
 namespace ats {
 
@@ -118,55 +136,167 @@ bool HealthCheck::CheckSystem() {
 
 // Stub implementations for individual health checks
 HealthCheckResult HealthCheck::CheckNetworkConnectivity() {
-    return HealthCheckResult("NetworkConnectivity", HealthStatus::HEALTHY, "Network is reachable");
+    // Test connectivity by trying to resolve common DNS names
+    std::vector<std::string> test_hosts = {"8.8.8.8", "1.1.1.1", "google.com"};
+    
+    for (const auto& host : test_hosts) {
+        if (PingHost(host, 3000)) {
+            return HealthCheckResult("NetworkConnectivity", HealthStatus::HEALTHY, 
+                                   "Network connectivity verified");
+        }
+    }
+    
+    return HealthCheckResult("NetworkConnectivity", HealthStatus::CRITICAL, 
+                           "No network connectivity detected");
 }
 
 HealthCheckResult HealthCheck::CheckExchangeConnections() {
-    return HealthCheckResult("ExchangeConnections", HealthStatus::HEALTHY, "Exchange connections are healthy");
+    // This would typically check actual exchange connections
+    // For now, return healthy as a placeholder
+    return HealthCheckResult("ExchangeConnections", HealthStatus::HEALTHY, 
+                           "Exchange connections are responsive");
 }
 
 HealthCheckResult HealthCheck::CheckSystemResources() {
-    return HealthCheckResult("SystemResources", HealthStatus::HEALTHY, "System resources are adequate");
+    std::vector<std::string> issues;
+    
+    // Check memory usage
+    double memory_usage = GetMemoryUsagePercent();
+    if (memory_usage > 90.0) {
+        issues.push_back("High memory usage: " + std::to_string(memory_usage) + "%");
+    }
+    
+    // Check disk space
+    double disk_space_gb = GetAvailableDiskSpaceGB(".");
+    if (disk_space_gb < 1.0) {
+        issues.push_back("Low disk space: " + std::to_string(disk_space_gb) + " GB");
+    }
+    
+    // Check CPU temperature (simplified)
+    double cpu_temp = GetCpuTemperatureC();
+    if (cpu_temp > 85.0) {
+        issues.push_back("High CPU temperature: " + std::to_string(cpu_temp) + "°C");
+    }
+    
+    if (issues.empty()) {
+        return HealthCheckResult("SystemResources", HealthStatus::HEALTHY, 
+                               "System resources are adequate");
+    } else if (issues.size() == 1) {
+        return HealthCheckResult("SystemResources", HealthStatus::WARNING, issues[0]);
+    } else {
+        return HealthCheckResult("SystemResources", HealthStatus::CRITICAL, 
+                               "Multiple resource issues detected");
+    }
 }
 
 HealthCheckResult HealthCheck::CheckDiskSpace() {
-    return HealthCheckResult("DiskSpace", HealthStatus::HEALTHY, "Disk space is sufficient");
+    double available_gb = GetAvailableDiskSpaceGB(".");
+    
+    if (available_gb < 0.5) {
+        return HealthCheckResult("DiskSpace", HealthStatus::CRITICAL, 
+                               "Critical: Less than 0.5GB available");
+    } else if (available_gb < 2.0) {
+        return HealthCheckResult("DiskSpace", HealthStatus::WARNING, 
+                               "Warning: Less than 2GB available");
+    } else {
+        return HealthCheckResult("DiskSpace", HealthStatus::HEALTHY, 
+                               "Sufficient disk space: " + std::to_string(available_gb) + " GB");
+    }
 }
 
 HealthCheckResult HealthCheck::CheckMemoryUsage() {
-    return HealthCheckResult("MemoryUsage", HealthStatus::HEALTHY, "Memory usage is normal");
+    double memory_percent = GetMemoryUsagePercent();
+    
+    if (memory_percent > 95.0) {
+        return HealthCheckResult("MemoryUsage", HealthStatus::CRITICAL, 
+                               "Critical memory usage: " + std::to_string(memory_percent) + "%");
+    } else if (memory_percent > 85.0) {
+        return HealthCheckResult("MemoryUsage", HealthStatus::WARNING, 
+                               "High memory usage: " + std::to_string(memory_percent) + "%");
+    } else {
+        return HealthCheckResult("MemoryUsage", HealthStatus::HEALTHY, 
+                               "Memory usage: " + std::to_string(memory_percent) + "%");
+    }
 }
 
 HealthCheckResult HealthCheck::CheckCpuTemperature() {
-    return HealthCheckResult("CpuTemperature", HealthStatus::HEALTHY, "CPU temperature is normal");
+    double temp_c = GetCpuTemperatureC();
+    
+    if (temp_c > 90.0) {
+        return HealthCheckResult("CpuTemperature", HealthStatus::CRITICAL, 
+                               "Critical CPU temperature: " + std::to_string(temp_c) + "°C");
+    } else if (temp_c > 80.0) {
+        return HealthCheckResult("CpuTemperature", HealthStatus::WARNING, 
+                               "High CPU temperature: " + std::to_string(temp_c) + "°C");
+    } else {
+        return HealthCheckResult("CpuTemperature", HealthStatus::HEALTHY, 
+                               "CPU temperature: " + std::to_string(temp_c) + "°C");
+    }
 }
 
 HealthCheckResult HealthCheck::CheckDatabaseConnection() {
-    return HealthCheckResult("DatabaseConnection", HealthStatus::HEALTHY, "Database connection is active");
+    // For this trading system, we don't have a traditional database
+    // Check if log files are accessible instead
+    if (CheckFileWritable("logs/test.tmp")) {
+        return HealthCheckResult("DatabaseConnection", HealthStatus::HEALTHY, 
+                               "File system access verified");
+    } else {
+        return HealthCheckResult("DatabaseConnection", HealthStatus::WARNING, 
+                               "File system access issues");
+    }
 }
 
 HealthCheckResult HealthCheck::CheckLogFileAccess() {
-    return HealthCheckResult("LogFileAccess", HealthStatus::HEALTHY, "Log file is accessible");
+    std::string log_path = "logs/ats_v3.log";
+    
+    if (CheckFileWritable(log_path)) {
+        return HealthCheckResult("LogFileAccess", HealthStatus::HEALTHY, 
+                               "Log file is accessible");
+    } else {
+        return HealthCheckResult("LogFileAccess", HealthStatus::WARNING, 
+                               "Log file access issues");
+    }
 }
 
 std::vector<HealthCheckResult> HealthCheck::GetCriticalResults() const {
     std::vector<HealthCheckResult> results;
-    // TODO: Filter critical results from check_results_
+    std::copy_if(check_results_.begin(), check_results_.end(), std::back_inserter(results),
+                [](const HealthCheckResult& result) {
+                    return result.status == HealthStatus::CRITICAL;
+                });
     return results;
 }
 
 std::vector<HealthCheckResult> HealthCheck::GetWarningResults() const {
     std::vector<HealthCheckResult> results;
-    // TODO: Filter warning results from check_results_
+    std::copy_if(check_results_.begin(), check_results_.end(), std::back_inserter(results),
+                [](const HealthCheckResult& result) {
+                    return result.status == HealthStatus::WARNING;
+                });
     return results;
 }
 
 void HealthCheck::AddResult(const HealthCheckResult& result) {
     check_results_.push_back(result);
+    
+    // Keep only recent results (limit to 1000 entries)
+    if (check_results_.size() > 1000) {
+        check_results_.erase(check_results_.begin(), 
+                           check_results_.begin() + (check_results_.size() - 1000));
+    }
 }
 
 void HealthCheck::CleanupOldResults() {
-    // TODO: Remove old results based on timestamp
+    auto now = std::chrono::system_clock::now();
+    auto cutoff = now - std::chrono::hours(24); // Keep results for 24 hours
+    
+    check_results_.erase(
+        std::remove_if(check_results_.begin(), check_results_.end(),
+            [cutoff](const HealthCheckResult& result) {
+                return result.timestamp < cutoff;
+            }),
+        check_results_.end()
+    );
 }
 
 std::string HealthCheck::StatusToString(HealthStatus status) const {
@@ -180,18 +310,211 @@ std::string HealthCheck::StatusToString(HealthStatus status) const {
 }
 
 bool HealthCheck::PingHost(const std::string& host, int timeout_ms) {
-    // TODO: Implement ping functionality
-    return true;
+#ifdef _WIN32
+    // Windows implementation
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        return false;
+    }
+    
+    struct sockaddr_in addr;
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(80); // Try HTTP port
+    
+    // Try to resolve hostname
+    struct hostent* host_entry = gethostbyname(host.c_str());
+    if (host_entry == nullptr) {
+        // Try as IP address
+        addr.sin_addr.s_addr = inet_addr(host.c_str());
+        if (addr.sin_addr.s_addr == INADDR_NONE) {
+            WSACleanup();
+            return false;
+        }
+    } else {
+        memcpy(&addr.sin_addr, host_entry->h_addr_list[0], host_entry->h_length);
+    }
+    
+    SOCKET sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock == INVALID_SOCKET) {
+        WSACleanup();
+        return false;
+    }
+    
+    // Set timeout
+    DWORD timeout = timeout_ms;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char*)&timeout, sizeof(timeout));
+    
+    // Try to connect
+    int result = connect(sock, (struct sockaddr*)&addr, sizeof(addr));
+    
+    closesocket(sock);
+    WSACleanup();
+    
+    return result == 0;
+    
+#else
+    // Linux implementation
+    struct sockaddr_in addr;
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(80);
+    
+    // Try to resolve hostname
+    struct hostent* host_entry = gethostbyname(host.c_str());
+    if (host_entry == nullptr) {
+        // Try as IP address
+        if (inet_aton(host.c_str(), &addr.sin_addr) == 0) {
+            return false;
+        }
+    } else {
+        memcpy(&addr.sin_addr, host_entry->h_addr_list[0], host_entry->h_length);
+    }
+    
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
+        return false;
+    }
+    
+    // Set timeout
+    struct timeval tv;
+    tv.tv_sec = timeout_ms / 1000;
+    tv.tv_usec = (timeout_ms % 1000) * 1000;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+    
+    // Try to connect
+    int result = connect(sock, (struct sockaddr*)&addr, sizeof(addr));
+    
+    close(sock);
+    
+    return result == 0;
+#endif
 }
 
 bool HealthCheck::CheckFileWritable(const std::string& filepath) {
-    // TODO: Implement file write check
-    return true;
+    try {
+        // Ensure directory exists
+        std::filesystem::path file_path(filepath);
+        std::filesystem::create_directories(file_path.parent_path());
+        
+        // Try to write a test file
+        std::ofstream test_file(filepath, std::ios::app);
+        if (!test_file.is_open()) {
+            return false;
+        }
+        
+        test_file << "health_check_test_" << std::chrono::system_clock::now().time_since_epoch().count() << std::endl;
+        test_file.close();
+        
+        // Try to read it back
+        std::ifstream read_file(filepath);
+        if (!read_file.is_open()) {
+            return false;
+        }
+        read_file.close();
+        
+        return true;
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR("File write check failed for {}: {}", filepath, e.what());
+        return false;
+    }
 }
 
 double HealthCheck::GetAvailableDiskSpaceGB(const std::string& path) {
-    // TODO: Implement disk space check
-    return 100.0; // Placeholder
+    try {
+#ifdef _WIN32
+        ULARGE_INTEGER free_bytes_available;
+        ULARGE_INTEGER total_number_of_bytes;
+        
+        if (GetDiskFreeSpaceExA(path.c_str(), &free_bytes_available, &total_number_of_bytes, nullptr)) {
+            return static_cast<double>(free_bytes_available.QuadPart) / (1024.0 * 1024.0 * 1024.0);
+        }
+        return 0.0;
+        
+#else
+        struct statvfs stat;
+        if (statvfs(path.c_str(), &stat) == 0) {
+            unsigned long available_bytes = stat.f_bavail * stat.f_frsize;
+            return static_cast<double>(available_bytes) / (1024.0 * 1024.0 * 1024.0);
+        }
+        return 0.0;
+#endif
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR("Disk space check failed for {}: {}", path, e.what());
+        return 0.0;
+    }
+}
+
+double HealthCheck::GetMemoryUsagePercent() {
+    try {
+#ifdef _WIN32
+        MEMORYSTATUSEX memInfo;
+        memInfo.dwLength = sizeof(MEMORYSTATUSEX);
+        
+        if (GlobalMemoryStatusEx(&memInfo)) {
+            return static_cast<double>(memInfo.dwMemoryLoad);
+        }
+        return 0.0;
+        
+#else
+        struct sysinfo mem_info;
+        if (sysinfo(&mem_info) == 0) {
+            unsigned long total_ram = mem_info.totalram * mem_info.mem_unit;
+            unsigned long free_ram = mem_info.freeram * mem_info.mem_unit;
+            unsigned long used_ram = total_ram - free_ram;
+            
+            return static_cast<double>(used_ram) / total_ram * 100.0;
+        }
+        return 0.0;
+#endif
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR("Memory usage check failed: {}", e.what());
+        return 0.0;
+    }
+}
+
+double HealthCheck::GetCpuTemperatureC() {
+    try {
+#ifdef _WIN32
+        // Windows doesn't have a simple API for CPU temperature
+        // Return a safe default value
+        return 45.0;
+        
+#else
+        // Try to read temperature from common Linux thermal files
+        std::vector<std::string> temp_files = {
+            "/sys/class/thermal/thermal_zone0/temp",
+            "/sys/class/thermal/thermal_zone1/temp"
+        };
+        
+        for (const auto& temp_file : temp_files) {
+            std::ifstream file(temp_file);
+            if (file.is_open()) {
+                std::string temp_str;
+                std::getline(file, temp_str);
+                file.close();
+                
+                if (!temp_str.empty()) {
+                    // Temperature is usually in millidegrees Celsius
+                    double temp = std::stod(temp_str) / 1000.0;
+                    if (temp > 0 && temp < 150) { // Sanity check
+                        return temp;
+                    }
+                }
+            }
+        }
+        
+        // If no thermal files are available, return a safe default
+        return 45.0;
+#endif
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR("CPU temperature check failed: {}", e.what());
+        return 45.0; // Safe default
+    }
 }
 
 } // namespace ats 

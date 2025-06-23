@@ -9,10 +9,15 @@
 #include <functional>
 
 #include "../core/types.hpp"
-#include "../exchange/exchange_interface.hpp"
-#include "../network/websocket_client.hpp"
-#include "../data/price_cache.hpp"
-#include "../data/market_data.hpp"
+
+// Forward declarations to avoid circular dependencies
+namespace ats {
+    class ConfigManager;
+    class ExchangeInterface;
+    class WebSocketClient;
+    class PriceCache;
+    class MarketDataFeed;
+}
 
 namespace ats {
 
@@ -156,6 +161,18 @@ private:
     std::string BuildSubscriptionMessage(const std::string& exchange, const std::vector<std::string>& symbols) const;
     bool IsDataStale(const std::string& exchange, const std::string& symbol) const;
     void UpdateLastUpdateTime(const std::string& key);
+    
+    // WebSocket management
+    void CheckWebSocketHealth();
+    void ProcessWebSocketQueue();
+    void CleanupWebSocketConnections();
+    void SubscribeToSymbols(const std::string& exchange, const std::vector<std::string>& symbols);
+    
+    // Symbol conversion utilities
+    std::string ConvertSymbolToBinance(const std::string& symbol) const;
+    std::string ConvertSymbolFromBinance(const std::string& symbol) const;
+    std::string ConvertSymbolToUpbit(const std::string& symbol) const;
+    std::string ConvertSymbolFromUpbit(const std::string& symbol) const;
     
     // Exchange-specific message parsing
     bool ParseBinanceMessage(const std::string& message, Price& price, OrderBook& orderbook);

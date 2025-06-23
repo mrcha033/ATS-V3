@@ -6,6 +6,7 @@
 #include <atomic>
 #include <unordered_map>
 #include <variant>
+#include <memory>
 
 namespace ats {
 
@@ -106,27 +107,26 @@ struct Balance {
 };
 
 struct Order {
-    std::string order_id;
-    std::string id;              // Alias for order_id for compatibility
+    std::string order_id;            // Single ID field - removed duplication
     std::string exchange;
     std::string symbol;
-    OrderType type;              // MARKET, LIMIT
-    OrderSide side;              // BUY, SELL
+    OrderType type;                  // MARKET, LIMIT
+    OrderSide side;                  // BUY, SELL
     double quantity;
-    double price;                // For limit orders
+    double price;                    // For limit orders
     double filled_quantity;
     double avg_fill_price;
     OrderStatus status;
     std::string error_message;
     long long timestamp;
-    long long filled_time;       // Time when order was filled
+    long long filled_time;           // Time when order was filled
     
     Order() : type(OrderType::MARKET), side(OrderSide::BUY), quantity(0.0), price(0.0), 
              filled_quantity(0.0), avg_fill_price(0.0), status(OrderStatus::PENDING), 
-             timestamp(0), filled_time(0) {
-        // Keep id and order_id in sync
-        id = order_id;
-    }
+             timestamp(0), filled_time(0) {}
+    
+    // Compatibility getter for legacy code
+    const std::string& id() const noexcept { return order_id; }
 };
 
 // Arbitrage opportunity structure
@@ -220,7 +220,53 @@ struct ExecutionResult {
     }
 };
 
-// Cross-exchange price comparison
+// Thread-safe statistics structure
+struct Statistics {
+    std::atomic<long long> count{0};
+    std::atomic<double> sum{0.0};
+    std::atomic<double> min_value{std::numeric_limits<double>::max()};
+    std::atomic<double> max_value{std::numeric_limits<double>::lowest()};
+    
+    void Update(double value) noexcept {
+        count.fetch_add(1);
+        
+        // Atomic add for double with proper loop handling
+        double expected = sum.load();
+        while (!sum.compare_exchange_weak(expected, expected + value)) {
+            // expected is automatically updated by compare_exchange_weak on failure
+        }
+        
+        // Update min/max using compare-and-swap loop with proper expected handling
+        double current_min = min_value.load();
+        while (value < current_min) {
+            if (min_value.compare_exchange_weak(current_min, value)) {
+                break; // Successfully updated
+            }
+            // current_min is updated by compare_exchange_weak on failure, retry
+        }
+        
+        double current_max = max_value.load();
+        while (value > current_max) {
+            if (max_value.compare_exchange_weak(current_max, value)) {
+                break; // Successfully updated
+            }
+            // current_max is updated by compare_exchange_weak on failure, retry
+        }
+    }
+    
+    double GetAverage() const noexcept {
+        long long c = count.load();
+        return c > 0 ? sum.load() / c : 0.0;
+    }
+    
+    void Reset() noexcept {
+        count.store(0);
+        sum.store(0.0);
+        min_value.store(std::numeric_limits<double>::max());
+        max_value.store(std::numeric_limits<double>::lowest());
+    }
+};
+
 struct PriceComparison {
     std::string symbol;
     std::unordered_map<std::string, Price> exchange_prices; // exchange_name -> Price
@@ -236,10 +282,9 @@ struct PriceComparison {
     }
 };
 
-// Forward declaration for recursive JsonValue
+// JSON value type for configuration
 struct JsonValue;
 
-// JSON Value type definition (must be at end to avoid circular dependencies)
 struct JsonValue : public std::variant<
     std::nullptr_t,
     bool,
