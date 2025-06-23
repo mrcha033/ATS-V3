@@ -53,6 +53,11 @@ private:
     std::string user_agent_;
     long default_timeout_ms_;
     bool verify_ssl_;
+    std::string base_url_;
+    std::unordered_map<std::string, std::string> headers_;
+    bool follow_redirects_;
+    int max_redirects_;
+    long connect_timeout_ms_;
     
     // Thread pool for async operations
     std::vector<std::thread> thread_pool_;
@@ -84,6 +89,11 @@ public:
     void SetDefaultTimeout(long timeout_ms);
     void SetSslVerification(bool verify);
     void SetConnectTimeout(long timeout_ms);
+    void SetBaseUrl(const std::string& base_url);
+    void AddHeader(const std::string& key, const std::string& value);
+    void RemoveHeader(const std::string& key);
+    void ClearHeaders();
+    void SetFollowRedirects(bool follow, int max_redirects = 5);
     
     // Thread pool management
     void StartThreadPool(size_t pool_size = 4);
@@ -118,16 +128,22 @@ public:
     long long GetFailedRequests() const;
     double GetAverageResponseTime() const;
     double GetSuccessRate() const;
+    double GetErrorRate() const;
     
     // Health check
     bool IsHealthy() const;
     std::string GetLastError() const;
     
+    // Utility methods
+    std::string BuildUrl(const std::string& endpoint, const std::map<std::string, std::string>& params = {});
+    std::string BuildPostData(const std::map<std::string, std::string>& data);
+    std::string BuildQueryString(const std::unordered_map<std::string, std::string>& params);
+    
 private:
     // CURL callback functions
     static size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp);
     static size_t HeaderCallback(char* buffer, size_t size, size_t nitems, 
-                                std::unordered_map<std::string, std::string>* headers);
+                                std::map<std::string, std::string>* headers);
     
     // Helper methods
     void SetCommonOptions(CURL* curl, const HttpRequest& request);

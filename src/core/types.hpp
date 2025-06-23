@@ -129,6 +129,66 @@ struct Order {
     const std::string& id() const noexcept { return order_id; }
 };
 
+struct OrderRequest {
+    std::string symbol;
+    OrderType type;
+    OrderSide side;
+    double quantity;
+    double price;                    // For limit orders
+    
+    OrderRequest() : type(OrderType::MARKET), side(OrderSide::BUY), quantity(0.0), price(0.0) {}
+    OrderRequest(const std::string& sym, OrderType t, OrderSide s, double q, double p = 0.0)
+        : symbol(sym), type(t), side(s), quantity(q), price(p) {}
+};
+
+struct Trade {
+    std::string trade_id;
+    std::string order_id;
+    std::string symbol;
+    OrderSide side;
+    double quantity;
+    double price;
+    double fee;
+    std::string fee_asset;
+    long long timestamp;
+    
+    Trade() : side(OrderSide::BUY), quantity(0.0), price(0.0), fee(0.0), timestamp(0) {}
+};
+
+struct AccountInfo {
+    std::vector<Balance> balances;
+    double total_value_usd;
+    long long timestamp;
+    
+    AccountInfo() : total_value_usd(0.0), timestamp(0) {}
+    
+    Balance GetBalance(const std::string& asset) const {
+        for (const auto& balance : balances) {
+            if (balance.asset == asset) {
+                return balance;
+            }
+        }
+        return Balance{asset, 0.0, 0.0};
+    }
+};
+
+struct MarketData {
+    std::string symbol;
+    double last_price;
+    double bid_price;
+    double ask_price;
+    double volume_24h;
+    double change_24h;
+    double change_percent_24h;
+    double high_24h;
+    double low_24h;
+    long long timestamp;
+    
+    MarketData() : last_price(0.0), bid_price(0.0), ask_price(0.0), volume_24h(0.0),
+                  change_24h(0.0), change_percent_24h(0.0), high_24h(0.0), low_24h(0.0),
+                  timestamp(0) {}
+};
+
 // Arbitrage opportunity structure
 struct ArbitrageOpportunity {
     std::string symbol;

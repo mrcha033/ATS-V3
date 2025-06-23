@@ -249,7 +249,7 @@ void ArbitrageEngine::ProcessOpportunity(const ArbitrageOpportunity& opportunity
 void ArbitrageEngine::UpdateStatistics(const ArbitrageOpportunity& opportunity, bool executed) {
     if (executed) {
         trades_executed_++;
-        total_profit_ += opportunity.profit_percent;
+        total_profit_.fetch_add(opportunity.profit_percent);
     }
 }
 
@@ -358,7 +358,7 @@ void ArbitrageEngine::OnOpportunityDetected(const ArbitrageOpportunity& opportun
 
 void ArbitrageEngine::OnTradeCompleted(const ExecutionResult& result) {
     trades_executed_++;
-    total_profit_ += result.realized_pnl;
+    total_profit_.fetch_add(result.realized_pnl);
     
     LOG_INFO("Trade {} completed: state={}, PnL=${:.2f}, execution_time={:.1f}ms",
              result.trade_id,

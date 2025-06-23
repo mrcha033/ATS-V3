@@ -123,3 +123,12 @@ node_modules/
 # Performance profiling
 *.prof
 *.perf
+
+# Cache files
+.cache/
+.vscode/
+.idea/
+.vscode/
+.idea/
+.vscode/
+.idea/

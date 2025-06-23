@@ -381,6 +381,25 @@ std::string RestClient::BuildPostData(const std::map<std::string, std::string>& 
     return oss.str();
 }
 
+std::string RestClient::BuildQueryString(const std::unordered_map<std::string, std::string>& params) {
+    if (params.empty()) {
+        return "";
+    }
+    
+    std::ostringstream oss;
+    bool first = true;
+    
+    for (const auto& pair : params) {
+        if (!first) {
+            oss << "&";
+        }
+        oss << UrlEncode(pair.first) << "=" << UrlEncode(pair.second);
+        first = false;
+    }
+    
+    return oss.str();
+}
+
 std::string RestClient::UrlEncode(const std::string& value) {
 #ifdef HAVE_CURL
     CURL* curl = curl_easy_init();

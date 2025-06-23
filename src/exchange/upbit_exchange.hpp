@@ -20,25 +20,44 @@ public:
 
     // ExchangeInterface implementation
     bool Connect() override;
-    bool Disconnect() override;
-    bool IsConnected() const override;
+    void Disconnect() override;
+    ExchangeStatus GetStatus() const override;
+    std::string GetName() const override;
     
-    bool PlaceOrder(const OrderRequest& request) override;
+    // Market data
+    bool GetPrice(const std::string& symbol, Price& price) override;
+    bool GetOrderBook(const std::string& symbol, OrderBook& orderbook) override;
+    std::vector<std::string> GetSupportedSymbols() override;
+    
+    // Account information  
+    std::vector<Balance> GetBalances() override;
+    double GetBalance(const std::string& asset) override;
+    
+    // Trading
+    std::string PlaceOrder(const std::string& symbol, const std::string& side, 
+                         const std::string& type, double quantity, double price = 0.0) override;
     bool CancelOrder(const std::string& order_id) override;
-    bool GetOrderStatus(const std::string& order_id, OrderStatus& status) override;
-    std::vector<OrderStatus> GetOpenOrders() override;
-    std::vector<Trade> GetTradeHistory(const std::string& symbol, int limit) override;
+    Order GetOrder(const std::string& order_id) override;
+    std::vector<Order> GetOpenOrders(const std::string& symbol = "") override;
     
-    AccountInfo GetAccountInfo() override;
-    MarketData GetMarketData(const std::string& symbol) override;
-    OrderBook GetOrderBook(const std::string& symbol, int depth) override;
+    // WebSocket subscriptions
+    bool SubscribeToPrice(const std::string& symbol, 
+                        std::function<void(const Price&)> callback) override;
+    bool SubscribeToOrderBook(const std::string& symbol,
+                            std::function<void(const OrderBook&)> callback) override;
+    bool UnsubscribeFromPrice(const std::string& symbol) override;
+    bool UnsubscribeFromOrderBook(const std::string& symbol) override;
     
-    bool SubscribeToMarketData(const std::string& symbol, 
-                              std::function<void(const MarketData&)> callback) override;
-    bool SubscribeToOrderBook(const std::string& symbol, 
-                             std::function<void(const OrderBook&)> callback) override;
-    bool SubscribeToTrades(const std::string& symbol, 
-                          std::function<void(const Trade&)> callback) override;
+    // Exchange specific information
+    double GetMakerFee() const override;
+    double GetTakerFee() const override;
+    int GetRateLimit() const override;
+    double GetMinOrderSize(const std::string& symbol) const override;
+    double GetMaxOrderSize(const std::string& symbol) const override;
+    
+    // Health check
+    bool IsHealthy() const override;
+    std::string GetLastError() const override;
 
     // Upbit specific methods
     std::vector<std::string> GetMarkets();

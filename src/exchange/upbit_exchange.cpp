@@ -66,19 +66,17 @@ bool UpbitExchange::Connect() {
     }
 }
 
-bool UpbitExchange::Disconnect() {
+void UpbitExchange::Disconnect() {
     try {
         if (ws_client_->IsConnected()) {
-            ws_client_->Close();
+            ws_client_->Disconnect();
         }
         
         connected_ = false;
-        Logger::Info("Disconnected from Upbit exchange");
-        return true;
+        LOG_INFO("Disconnected from Upbit exchange");
         
     } catch (const std::exception& e) {
-        Logger::Error("Exception in Upbit disconnection: " + std::string(e.what()));
-        return false;
+        LOG_ERROR("Exception in Upbit disconnection: {}", e.what());
     }
 }
 
