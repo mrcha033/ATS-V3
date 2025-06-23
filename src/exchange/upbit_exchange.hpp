@@ -2,6 +2,7 @@
 
 #include "exchange_interface.hpp"
 #include "../core/types.hpp"
+#include "../data/market_data.hpp"
 #include "../network/rest_client.hpp"
 #include "../network/websocket_client.hpp"
 #include "../utils/json_parser.hpp"
@@ -105,17 +106,17 @@ private:
     
     // API methods
     bool MakeRequest(const std::string& endpoint, const std::string& method,
-                    const std::string& params, JsonValue& response);
+                    const std::string& params, ats::json::JsonValue& response);
     bool MakeAuthenticatedRequest(const std::string& endpoint, const std::string& method,
-                                 const std::string& params, JsonValue& response);
+                                 const std::string& params, ats::json::JsonValue& response);
     
     // Data parsing
-    OrderStatus ParseOrderStatus(const JsonValue& order_data);
-    Trade ParseTrade(const JsonValue& trade_data);
-    MarketData ParseMarketData(const JsonValue& ticker_data);
-    OrderBook ParseOrderBook(const JsonValue& orderbook_data);
-    Candle ParseCandle(const JsonValue& candle_data);
-    Ticker ParseTicker(const JsonValue& ticker_data);
+    OrderStatus ParseOrderStatus(const ats::json::JsonValue& order_data);
+    Trade ParseTrade(const ats::json::JsonValue& trade_data);
+    MarketData ParseMarketData(const ats::json::JsonValue& ticker_data);
+    OrderBook ParseOrderBook(const ats::json::JsonValue& orderbook_data);
+    Candle ParseCandle(const ats::json::JsonValue& candle_data);
+    Ticker ParseTicker(const ats::json::JsonValue& ticker_data);
     
     // WebSocket handlers
     void OnWebSocketMessage(const std::string& message);
@@ -135,50 +136,6 @@ private:
     static const std::string WS_URL;
     static const int MAX_REQUESTS_PER_SECOND;
     static const int MAX_REQUESTS_PER_MINUTE;
-};
-
-// Helper structures for Upbit specific data
-struct Candle {
-    std::string market;
-    std::string candle_date_time_utc;
-    std::string candle_date_time_kst;
-    double opening_price;
-    double high_price;
-    double low_price;
-    double trade_price;
-    uint64_t timestamp;
-    double candle_acc_trade_price;
-    double candle_acc_trade_volume;
-    int unit;
-};
-
-struct Ticker {
-    std::string market;
-    std::string trade_date;
-    std::string trade_time;
-    std::string trade_date_kst;
-    std::string trade_time_kst;
-    uint64_t trade_timestamp;
-    double opening_price;
-    double high_price;
-    double low_price;
-    double trade_price;
-    double prev_closing_price;
-    std::string change;
-    double change_price;
-    double change_rate;
-    double signed_change_price;
-    double signed_change_rate;
-    double trade_volume;
-    double acc_trade_price;
-    double acc_trade_price_24h;
-    double acc_trade_volume;
-    double acc_trade_volume_24h;
-    double highest_52_week_price;
-    std::string highest_52_week_date;
-    double lowest_52_week_price;
-    std::string lowest_52_week_date;
-    uint64_t timestamp;
 };
 
 } // namespace ats 

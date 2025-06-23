@@ -87,9 +87,9 @@ private:
     // REST API methods
     std::string MakeAuthenticatedRequest(const std::string& endpoint, 
                                         const std::string& method = "GET",
-                                        const std::map<std::string, std::string>& params = {});
+                                        const std::unordered_map<std::string, std::string>& params = {});
     std::string MakePublicRequest(const std::string& endpoint,
-                                 const std::map<std::string, std::string>& params = {});
+                                 const std::unordered_map<std::string, std::string>& params = {});
     
     // WebSocket message handlers
     void OnWebSocketMessage(const std::string& message);

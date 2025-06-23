@@ -239,10 +239,23 @@ double RiskManager::GetExchangeExposure(const std::string& exchange) const {
 }
 
 void RiskManager::UpdatePnL(double pnl) {
-    daily_pnl_ += pnl;
-    weekly_pnl_ += pnl;
-    monthly_pnl_ += pnl;
-    total_pnl_ += pnl;
+    // std::atomic<double> doesn't support +=, use compare_exchange pattern
+    {
+        double current = daily_pnl_.load();
+        while (!daily_pnl_.compare_exchange_weak(current, current + pnl)) {}
+    }
+    {
+        double current = weekly_pnl_.load();
+        while (!weekly_pnl_.compare_exchange_weak(current, current + pnl)) {}
+    }
+    {
+        double current = monthly_pnl_.load();
+        while (!monthly_pnl_.compare_exchange_weak(current, current + pnl)) {}
+    }
+    {
+        double current = total_pnl_.load();
+        while (!total_pnl_.compare_exchange_weak(current, current + pnl)) {}
+    }
     
     // Check kill switch
     if (limits_.enable_kill_switch && daily_pnl_.load() < -limits_.kill_switch_loss_threshold) {

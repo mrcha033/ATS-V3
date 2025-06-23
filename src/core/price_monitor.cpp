@@ -5,6 +5,7 @@
 #include "../network/websocket_client.hpp"
 #include "../data/price_cache.hpp"
 #include "../data/market_data.hpp"
+#include "../utils/json_parser.hpp"
 
 namespace ats {
 
@@ -623,22 +624,22 @@ void PriceMonitor::HandleWebSocketFailure(const std::string& exchange) {
 
 bool PriceMonitor::ParseBinanceMessage(const std::string& message, Price& price, OrderBook& orderbook) {
     try {
-        auto json = JsonParser::ParseString(message);
+        auto json = ats::json::ParseJson(message);
         
         // Check if this is a ticker update
-        if (ats::json::HasPath(json, "s") && ats::json::HasPath(json, "c")) {
-            std::string symbol = ats::json::AsString(ats::json::GetPath(json, "s"));
+        if (ats::json::HasKey(json, "s") && ats::json::HasKey(json, "c")) {
+            std::string symbol = ats::json::GetString(ats::json::GetValue(json, "s"));
             price.symbol = ConvertSymbolFromBinance(symbol);
-            price.last = std::stod(ats::json::AsString(ats::json::GetPath(json, "c")));
+            price.last = std::stod(ats::json::GetString(ats::json::GetValue(json, "c")));
             
-            if (ats::json::HasPath(json, "b")) {
-                price.bid = std::stod(ats::json::AsString(ats::json::GetPath(json, "b")));
+            if (ats::json::HasKey(json, "b")) {
+                price.bid = std::stod(ats::json::GetString(ats::json::GetValue(json, "b")));
             }
-            if (ats::json::HasPath(json, "a")) {
-                price.ask = std::stod(ats::json::AsString(ats::json::GetPath(json, "a")));
+            if (ats::json::HasKey(json, "a")) {
+                price.ask = std::stod(ats::json::GetString(ats::json::GetValue(json, "a")));
             }
-            if (ats::json::HasPath(json, "v")) {
-                price.volume = std::stod(ats::json::AsString(ats::json::GetPath(json, "v")));
+            if (ats::json::HasKey(json, "v")) {
+                price.volume = std::stod(ats::json::GetString(ats::json::GetValue(json, "v")));
             }
             
             auto now = std::chrono::system_clock::now();
@@ -656,26 +657,26 @@ bool PriceMonitor::ParseBinanceMessage(const std::string& message, Price& price,
 
 bool PriceMonitor::ParseUpbitMessage(const std::string& message, Price& price, OrderBook& orderbook) {
     try {
-        auto json = JsonParser::ParseString(message);
+        auto json = ats::json::ParseJson(message);
         
         // Check if this is a ticker update
-        if (ats::json::HasPath(json, "type") && 
-            ats::json::AsString(ats::json::GetPath(json, "type")) == "ticker") {
+        if (ats::json::HasKey(json, "type") && 
+            ats::json::GetString(ats::json::GetValue(json, "type")) == "ticker") {
             
-            if (ats::json::HasPath(json, "code")) {
-                std::string symbol = ats::json::AsString(ats::json::GetPath(json, "code"));
+            if (ats::json::HasKey(json, "code")) {
+                std::string symbol = ats::json::GetString(ats::json::GetValue(json, "code"));
                 price.symbol = ConvertSymbolFromUpbit(symbol);
                 
-                if (ats::json::HasPath(json, "trade_price")) {
-                    price.last = ats::json::AsDouble(ats::json::GetPath(json, "trade_price"));
+                if (ats::json::HasKey(json, "trade_price")) {
+                    price.last = ats::json::GetNumber(ats::json::GetValue(json, "trade_price"));
                 }
-                if (ats::json::HasPath(json, "highest_52_week_price")) {
+                if (ats::json::HasKey(json, "highest_52_week_price")) {
                     // Upbit doesn't directly provide bid/ask in ticker, use last price as approximation
                     price.bid = price.last * 0.999;
                     price.ask = price.last * 1.001;
                 }
-                if (ats::json::HasPath(json, "acc_trade_volume_24h")) {
-                    price.volume = ats::json::AsDouble(ats::json::GetPath(json, "acc_trade_volume_24h"));
+                if (ats::json::HasKey(json, "acc_trade_volume_24h")) {
+                    price.volume = ats::json::GetNumber(ats::json::GetValue(json, "acc_trade_volume_24h"));
                 }
                 
                 auto now = std::chrono::system_clock::now();

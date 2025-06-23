@@ -588,12 +588,17 @@ void TradeExecutor::UpdatePerformanceMetrics(const ExecutionResult& result) {
     
     if (result.final_state == TradeState::COMPLETED) {
         trades_successful_++;
-        total_profit_ += result.realized_pnl;
+        // std::atomic<double> doesn't support +=, use compare_exchange
+        double current = total_profit_.load();
+        while (!total_profit_.compare_exchange_weak(current, current + result.realized_pnl)) {}
     } else {
         trades_failed_++;
     }
     
-    total_volume_ += result.buy_order_result.filled_quantity * result.buy_order_result.avg_fill_price;
+    // Handle total_volume_ similarly if it's also atomic<double>
+    double current_volume = total_volume_.load();
+    double volume_to_add = result.buy_order_result.filled_quantity * result.buy_order_result.avg_fill_price;
+    while (!total_volume_.compare_exchange_weak(current_volume, current_volume + volume_to_add)) {}
 }
 
 std::string TradeExecutor::GenerateTradeId() {

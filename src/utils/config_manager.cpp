@@ -1,10 +1,13 @@
 #include "config_manager.hpp"
-#include "json_parser.hpp"
 #include "logger.hpp"
 #include <fstream>
 #include <sstream>
 #include <algorithm>
 #include <cctype>
+#include <nlohmann/json.hpp>
+
+// Type alias for the forward-declared nlohmann_json
+using nlohmann_json = nlohmann::json;
 
 // Include shared_mutex only if available
 #ifdef HAS_SHARED_MUTEX
@@ -198,16 +201,8 @@ bool ConfigManager::ParseJson(const std::string& json_content) {
             return false;
         }
         
-        // Parse JSON content
-        JsonValue root = JsonParser::ParseString(json_content);
-        
-        if (!ats::json::IsObject(root)) {
-            LOG_ERROR("JSON root is not an object");
-            return false;
-        }
-        
-        auto rootObj = ats::json::AsObject(root);
-        ParseJsonObject(rootObj, "");
+        // Parse JSON content using our simple parser
+        ParseJsonFromString(json_content);
         
         // Validate required configuration keys
         std::vector<std::string> required_keys = {
@@ -223,12 +218,8 @@ bool ConfigManager::ParseJson(const std::string& json_content) {
         LOG_INFO("Configuration parsed and validated successfully from JSON");
         return true;
         
-    } catch (const JsonParseError& e) {
-        LOG_ERROR("JSON parse error: {}", e.what());
-        LOG_WARNING("Using default configuration values");
-        return false;
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to parse JSON config: {}", e.what());
+        LOG_ERROR("Configuration parse error: {}", e.what());
         LOG_WARNING("Using default configuration values");
         return false;
     }
@@ -277,34 +268,48 @@ std::string ConfigManager::ToJson() const {
     return json.str();
 }
 
-void ConfigManager::ParseJsonObject(const std::unordered_map<std::string, JsonValue>& obj, const std::string& prefix) {
-    for (const auto& pair : obj) {
-        std::string key = prefix.empty() ? pair.first : prefix + "." + pair.first;
-        ParseJsonValue(key, pair.second);
+void ConfigManager::ParseJsonFromString(const std::string& json_content) {
+    try {
+        auto root = nlohmann::json::parse(json_content);
+        
+        if (!root.is_object()) {
+            LOG_ERROR("JSON root is not an object");
+            return;
+        }
+        
+        // Simple recursive parsing
+        ParseJsonRecursive(&root, "");
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR("JSON parsing failed: {}", e.what());
+        throw;
     }
 }
 
-void ConfigManager::ParseJsonValue(const std::string& key, const JsonValue& value) {
-    if (ats::json::IsString(value)) {
-        config_data_[key] = ats::json::AsString(value);
-    } else if (ats::json::IsInt(value)) {
-        config_data_[key] = ats::json::AsInt(value);
-    } else if (ats::json::IsDouble(value)) {
-        config_data_[key] = ats::json::AsDouble(value);
-    } else if (ats::json::IsBool(value)) {
-        config_data_[key] = ats::json::AsBool(value);
-    } else if (ats::json::IsArray(value)) {
-        auto arr = ats::json::AsArray(value);
+void ConfigManager::ParseJsonRecursive(const void* json_value_ptr, const std::string& prefix) {
+    const auto& value = *static_cast<const nlohmann::json*>(json_value_ptr);
+    
+    if (value.is_object()) {
+        for (auto it = value.begin(); it != value.end(); ++it) {
+            std::string key = prefix.empty() ? it.key() : prefix + "." + it.key();
+            ParseJsonRecursive(&(it.value()), key);
+        }
+    } else if (value.is_string()) {
+        SetString(prefix, value.get<std::string>());
+    } else if (value.is_number_integer()) {
+        SetInt(prefix, static_cast<int>(value.get<int>()));
+    } else if (value.is_number_float()) {
+        SetDouble(prefix, value.get<double>());
+    } else if (value.is_boolean()) {
+        SetBool(prefix, value.get<bool>());
+    } else if (value.is_array()) {
         std::vector<std::string> string_array;
-        for (const auto& item : arr) {
-            if (ats::json::IsString(item)) {
-                string_array.push_back(ats::json::AsString(item));
+        for (const auto& item : value) {
+            if (item.is_string()) {
+                string_array.push_back(item.get<std::string>());
             }
         }
-        config_data_[key] = string_array;
-    } else if (ats::json::IsObject(value)) {
-        auto obj = ats::json::AsObject(value);
-        ParseJsonObject(obj, key);
+        SetStringArray(prefix, string_array);
     }
 }
 

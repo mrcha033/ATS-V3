@@ -1,7 +1,22 @@
 #include "upbit_exchange.hpp"
-#include <jwt-cpp/jwt.h>
-#include <uuid/uuid.h>
-#include <openssl/sha.h>
+
+// Prevent Windows macro pollution before any other headers
+#if defined(_WIN32) && !defined(WIN32_LEAN_AND_MEAN)
+    #define WIN32_LEAN_AND_MEAN
+#endif
+#if defined(_WIN32) && !defined(NOMINMAX)
+    #define NOMINMAX
+#endif
+
+#ifdef HAVE_JWT_CPP
+    #include <jwt-cpp/jwt.h>
+#endif
+#ifdef HAVE_UUID
+    #include <uuid/uuid.h>
+#endif
+#ifdef HAVE_OPENSSL
+    #include <openssl/sha.h>
+#endif
 #include <iomanip>
 #include <sstream>
 #include <thread>
@@ -91,15 +106,13 @@ void UpbitExchange::LoadSymbolMappings() {
     auto response = rest_client_->Get(BASE_URL + "/v1/market/all");
     if (response.IsSuccess()) {
         try {
-            JsonValue json_response = JsonParser::ParseString(response.body);
+            JsonValue json_response = ats::json::ParseJson(response.body);
             if (ats::json::IsArray(json_response)) {
-                auto markets = ats::json::AsArray(json_response);
+                auto markets = json_response;
                 for (const auto& market : markets) {
                     if (ats::json::IsObject(market)) {
-                        auto market_obj = ats::json::AsObject(market);
-                        auto market_it = market_obj.find("market");
-                        if (market_it != market_obj.end()) {
-                            std::string upbit_symbol = ats::json::AsString(market_it->second);
+                        if (ats::json::HasKey(market, "market")) {
+                            std::string upbit_symbol = ats::json::GetString(ats::json::GetValue(market, "market"));
                             // Convert KRW-BTC to BTCKRW format
                             size_t dash_pos = upbit_symbol.find('-');
                             if (dash_pos != std::string::npos) {
@@ -248,7 +261,7 @@ bool UpbitExchange::MakeRequest(const std::string& endpoint, const std::string& 
         }
         
         try {
-            response = JsonParser::ParseString(http_response.body);
+            response = ats::json::ParseJson(http_response.body);
         } catch (const JsonParseError& e) {
             LOG_ERROR("Failed to parse JSON response from {}: {}", endpoint, e.what());
             return false;
@@ -311,7 +324,7 @@ bool UpbitExchange::MakeAuthenticatedRequest(const std::string& endpoint, const 
         }
         
         try {
-            response = JsonParser::ParseString(http_response.body);
+            response = ats::json::ParseJson(http_response.body);
         } catch (const JsonParseError& e) {
             LOG_ERROR("Failed to parse JSON response from {}: {}", endpoint, e.what());
             return false;

@@ -1,9 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(ATS-V3 LANGUAGES CXX)
 
-# Set C++ standard
-# Note: C++20 is preferred (as documented in README) but requires GCC 8+ or Clang 10+
-# Current compiler GNU 6.3.0 only supports up to C++17
+# Set C++ standard  
+# Use C++17 to avoid ranges issues for now
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -26,24 +25,13 @@ endif()
 # Find required packages
 find_package(Threads REQUIRED)
 
-# Find external dependencies for UpbitExchange
-find_package(PkgConfig QUIET)
+# Find external dependencies - vcpkg makes this much easier
+find_package(CURL REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
+
+# Optional dependencies
 find_package(OpenSSL QUIET)
-
-# Find jwt-cpp (header-only library)
-find_path(JWT_CPP_INCLUDE_DIR
-    NAMES jwt-cpp/jwt.h
-    PATHS /usr/include /usr/local/include
-    PATH_SUFFIXES jwt-cpp
-)
-
-# Find libuuid
-if(PkgConfig_FOUND)
-    pkg_check_modules(UUID QUIET uuid)
-endif()
-
-# Find CURL package (works with vcpkg)
-find_package(CURL QUIET)
+find_package(jwt-cpp CONFIG QUIET)
 
 # If vcpkg integration didn't work, try pkg-config as fallback
 if(NOT CURL_FOUND)
@@ -89,60 +77,38 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} 
     PRIVATE 
     Threads::Threads
+    CURL::libcurl
+    nlohmann_json::nlohmann_json
 )
 
 # Link OpenSSL if available
 if(OpenSSL_FOUND)
     target_link_libraries(${PROJECT_NAME} PRIVATE OpenSSL::SSL OpenSSL::Crypto)
     target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_OPENSSL)
-    message(STATUS "Found OpenSSL: ${OPENSSL_VERSION}")
+    message(STATUS "Found OpenSSL via vcpkg")
 else()
     message(WARNING "OpenSSL not found - UpbitExchange will have limited functionality")
+    message(STATUS "Install with: vcpkg install openssl:x64-windows")
 endif()
 
-# Link uuid if available
-if(UUID_FOUND)
-    target_link_libraries(${PROJECT_NAME} PRIVATE ${UUID_LIBRARIES})
-    target_include_directories(${PROJECT_NAME} PRIVATE ${UUID_INCLUDE_DIRS})
-    target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_UUID)
-    message(STATUS "Found libuuid")
-else()
-    message(WARNING "libuuid not found - UpbitExchange will have limited functionality")
-endif()
-
-# Include jwt-cpp if available
-if(JWT_CPP_INCLUDE_DIR)
-    target_include_directories(${PROJECT_NAME} PRIVATE ${JWT_CPP_INCLUDE_DIR})
+# Link jwt-cpp if available
+if(jwt-cpp_FOUND)
+    target_link_libraries(${PROJECT_NAME} PRIVATE jwt-cpp::jwt-cpp)
     target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_JWT_CPP)
-    message(STATUS "Found jwt-cpp headers")
+    message(STATUS "Found jwt-cpp")
 else()
     message(WARNING "jwt-cpp not found - UpbitExchange will have limited functionality")
+    message(STATUS "Install with: vcpkg install jwt-cpp:x64-windows")
 endif()
 
-# Link curl if available
-if(CURL_FOUND)
-    if(TARGET CURL::libcurl)
-        # Modern CMake target (vcpkg provides this)
-        target_link_libraries(${PROJECT_NAME} PRIVATE CURL::libcurl)
-        target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_CURL)
-        message(STATUS "Found libcurl via CMake: ${CURL_VERSION}")
-    elseif(CURL_LIBRARIES)
-        # Legacy variables (pkg-config provides this)
-        target_link_libraries(${PROJECT_NAME} PRIVATE ${CURL_LIBRARIES})
-        target_include_directories(${PROJECT_NAME} PRIVATE ${CURL_INCLUDE_DIRS})
-        target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_CURL)
-        message(STATUS "Found libcurl via pkg-config: ${CURL_VERSION}")
-    endif()
-else()
-    message(WARNING "libcurl not found - REST client will have limited functionality")
-    message(STATUS "To install libcurl on Windows:")
-    message(STATUS "  1. Install vcpkg: git clone https://github.com/Microsoft/vcpkg.git")
-    message(STATUS "  2. Bootstrap: .\\vcpkg\\bootstrap-vcpkg.bat")
-    message(STATUS "  3. Install curl: .\\vcpkg\\vcpkg install curl:x64-windows")
-    message(STATUS "  4. Integrate: .\\vcpkg\\vcpkg integrate install")
-    message(STATUS "  5. Reconfigure with: cmake .. -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake")
-    target_compile_definitions(${PROJECT_NAME} PRIVATE NO_CURL)
-endif()
+# Set compile definitions for available libraries
+target_compile_definitions(${PROJECT_NAME} PRIVATE 
+    HAVE_CURL
+    HAVE_NLOHMANN_JSON
+)
+
+message(STATUS "Found CURL via vcpkg")
+message(STATUS "Found nlohmann_json via vcpkg")
 
 # Enable position independent code
 set_property(TARGET ${PROJECT_NAME} PROPERTY POSITION_INDEPENDENT_CODE ON)

@@ -46,7 +46,7 @@ void Logger::Log(LogLevel level, const std::string& message) {
     
     // Console output
     if (console_output_) {
-        if (level >= LogLevel::ERROR) {
+        if (level >= LogLevel::ERR) {
             std::cerr << log_line << std::endl;
         } else {
             std::cout << log_line << std::endl;
@@ -79,10 +79,10 @@ std::string Logger::FormatTimestamp() {
 std::string Logger::LevelToString(LogLevel level) {
     switch (level) {
         case LogLevel::TRACE:    return "TRACE";
-        case LogLevel::DEBUG:    return "DEBUG";
+        case LogLevel::DBG:      return "DEBUG";
         case LogLevel::INFO:     return "INFO";
         case LogLevel::WARNING:  return "WARN";
-        case LogLevel::ERROR:    return "ERROR";
+        case LogLevel::ERR:      return "ERROR";
         case LogLevel::CRITICAL: return "CRIT";
         default:                 return "UNKNOWN";
     }

@@ -85,6 +85,7 @@ private:
     bool verify_ssl_;
     bool auto_reconnect_;
     int reconnect_interval_ms_;
+    std::chrono::milliseconds reconnect_delay_;
     
     // Threading
     std::thread worker_thread_;

@@ -9,6 +9,7 @@
 #include <queue>
 #include <condition_variable>
 #include <atomic>
+#include <map>
 
 #ifdef HAVE_CURL
 #include <curl/curl.h>

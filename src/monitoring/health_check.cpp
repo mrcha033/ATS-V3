@@ -6,9 +6,28 @@
 #include <algorithm>
 
 #ifdef _WIN32
+    // Only include necessary Windows headers for specific functions
+    #ifndef WIN32_LEAN_AND_MEAN
+        #define WIN32_LEAN_AND_MEAN
+    #endif
+    #ifndef NOMINMAX
+        #define NOMINMAX
+    #endif
     #include <windows.h>
-    #include <psapi.h>
-    #include <winbase.h>
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
+    #pragma comment(lib, "ws2_32.lib")
+    
+    // Clean up Windows macro pollution after includes
+    #ifdef ERROR
+        #undef ERROR
+    #endif
+    #ifdef min
+        #undef min
+    #endif
+    #ifdef max
+        #undef max
+    #endif
 #else
     #include <sys/statvfs.h>
     #include <sys/sysinfo.h>
@@ -287,7 +306,7 @@ void HealthCheck::AddResult(const HealthCheckResult& result) {
 }
 
 void HealthCheck::CleanupOldResults() {
-    auto now = std::chrono::system_clock::now();
+    auto now = std::chrono::steady_clock::now();
     auto cutoff = now - std::chrono::hours(24); // Keep results for 24 hours
     
     check_results_.erase(

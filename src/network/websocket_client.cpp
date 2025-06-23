@@ -1,3 +1,11 @@
+// Prevent Windows macro pollution BEFORE any other headers
+#if defined(_WIN32) && !defined(WIN32_LEAN_AND_MEAN)
+    #define WIN32_LEAN_AND_MEAN
+#endif
+#if defined(_WIN32) && !defined(NOMINMAX)
+    #define NOMINMAX
+#endif
+
 #include "websocket_client.hpp"
 #include "../utils/logger.hpp"
 #include <iostream>
@@ -9,6 +17,14 @@
 
 #ifdef HAVE_CURL
 #include <curl/curl.h>
+#endif
+
+// Undefine problematic Windows macros after all includes
+#ifdef SendMessage
+    #undef SendMessage
+#endif
+#ifdef ERROR
+    #undef ERROR
 #endif
 
 namespace ats {

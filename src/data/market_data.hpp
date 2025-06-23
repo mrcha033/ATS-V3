@@ -28,16 +28,7 @@ struct Ticker {
                price_change_percent_24h(0.0), high_24h(0.0), low_24h(0.0), timestamp(0) {}
 };
 
-struct Trade {
-    std::string symbol;
-    std::string trade_id;
-    double price;
-    double quantity;
-    long long timestamp;
-    bool is_buyer_maker;
-    
-    Trade() : price(0.0), quantity(0.0), timestamp(0), is_buyer_maker(false) {}
-};
+// Trade struct is defined in core/types.hpp
 
 struct Candle {
     std::string symbol;
@@ -101,6 +92,10 @@ private:
     std::unordered_map<std::string, MarketStats> market_stats_;
     
     mutable std::shared_mutex data_mutex_;
+    
+    // Lock type aliases for convenience
+    using unique_lock_type = std::unique_lock<std::shared_mutex>;
+    using shared_lock_type = std::shared_lock<std::shared_mutex>;
     
     // Configuration
     size_t max_trade_history_;

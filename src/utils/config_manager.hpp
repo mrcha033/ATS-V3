@@ -31,6 +31,9 @@ struct ConfigValue {
         std::vector<std::string>* array_val;
     };
     
+    // Default constructor
+    ConfigValue() : type(Int), int_val(0) {}
+    
     ConfigValue(const std::string& val) : type(String), string_val(new std::string(val)) {}
     ConfigValue(int val) : type(Int), int_val(val) {}
     ConfigValue(double val) : type(Double), double_val(val) {}
@@ -136,9 +139,9 @@ private:
     bool ParseJson(const std::string& json_content);
     std::string ToJson() const;
     
-    // JSON parsing helpers
-    void ParseJsonObject(const std::unordered_map<std::string, JsonValue>& obj, const std::string& prefix);
-    void ParseJsonValue(const std::string& key, const JsonValue& value);
+    // JSON parsing helpers - implementation details hidden
+    void ParseJsonFromString(const std::string& json_content);
+    void ParseJsonRecursive(const void* json_value, const std::string& prefix);
     
     template<typename T>
     T GetValue(const std::string& key, const T& default_value) const;

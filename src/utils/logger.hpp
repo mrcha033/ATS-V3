@@ -1,20 +1,43 @@
 #pragma once
 
+// Prevent Windows macro pollution
+#if defined(_WIN32) && !defined(WIN32_LEAN_AND_MEAN)
+    #define WIN32_LEAN_AND_MEAN
+#endif
+#if defined(_WIN32) && !defined(NOMINMAX)
+    #define NOMINMAX
+#endif
+
 #include <string>
 #include <memory>
 #include <sstream>
 #include <type_traits>
 #include <vector>
 #include <mutex>
+#include <fstream>
+#include <chrono>
+#include <iostream>
+#include <iomanip>
+
+// Clean up Windows macro pollution after includes
+#ifdef ERROR
+    #undef ERROR
+#endif
+#ifdef min
+    #undef min
+#endif
+#ifdef max
+    #undef max
+#endif
 
 namespace ats {
 
-enum class LogLevel {
+enum class LogLevel : int {
     TRACE = 0,
     DBG = 1,      // Renamed from DEBUG to avoid macro conflicts
     INFO = 2,
     WARNING = 3,
-    ERROR = 4,
+    ERR = 4,      // Renamed from ERROR to avoid macro conflicts
     CRITICAL = 5
 };
 
@@ -126,7 +149,7 @@ private:
 #define LOG_DEBUG(...) ats::Logger::Instance().Log(ats::LogLevel::DBG, __VA_ARGS__)
 #define LOG_INFO(...) ats::Logger::Instance().Log(ats::LogLevel::INFO, __VA_ARGS__)
 #define LOG_WARNING(...) ats::Logger::Instance().Log(ats::LogLevel::WARNING, __VA_ARGS__)
-#define LOG_ERROR(...) ats::Logger::Instance().Log(ats::LogLevel::ERROR, __VA_ARGS__)
+#define LOG_ERROR(...) ats::Logger::Instance().Log(ats::LogLevel::ERR, __VA_ARGS__)
 #define LOG_CRITICAL(...) ats::Logger::Instance().Log(ats::LogLevel::CRITICAL, __VA_ARGS__)
 
 } // namespace ats 

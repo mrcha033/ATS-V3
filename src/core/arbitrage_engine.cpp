@@ -249,7 +249,10 @@ void ArbitrageEngine::ProcessOpportunity(const ArbitrageOpportunity& opportunity
 void ArbitrageEngine::UpdateStatistics(const ArbitrageOpportunity& opportunity, bool executed) {
     if (executed) {
         trades_executed_++;
-        total_profit_.fetch_add(opportunity.profit_percent);
+        double current_profit = total_profit_.load();
+        while (!total_profit_.compare_exchange_weak(current_profit, current_profit + opportunity.profit_percent)) {
+            // Retry until successful
+        }
     }
 }
 
@@ -358,7 +361,10 @@ void ArbitrageEngine::OnOpportunityDetected(const ArbitrageOpportunity& opportun
 
 void ArbitrageEngine::OnTradeCompleted(const ExecutionResult& result) {
     trades_executed_++;
-    total_profit_.fetch_add(result.realized_pnl);
+    double current_profit = total_profit_.load();
+    while (!total_profit_.compare_exchange_weak(current_profit, current_profit + result.realized_pnl)) {
+        // Retry until successful
+    }
     
     LOG_INFO("Trade {} completed: state={}, PnL=${:.2f}, execution_time={:.1f}ms",
              result.trade_id,

@@ -1,73 +1,39 @@
 #pragma once
 
+#include <nlohmann/json.hpp>
 #include <string>
-#include <unordered_map>
 #include <vector>
-#include <stdexcept>
-#include "../core/types.hpp"
+#include <map>
 
 namespace ats {
-
-class JsonParseError : public std::runtime_error {
-public:
-    explicit JsonParseError(const std::string& message) : std::runtime_error(message) {}
-};
-
-class JsonParser {
-private:
-    std::string json_text_;
-    size_t pos_;
-    
-public:
-    explicit JsonParser(const std::string& json);
-    
-    JsonValue Parse();
-    
-    // Static convenience methods
-    static JsonValue ParseString(const std::string& json);
-    static std::string Stringify(const JsonValue& value, bool pretty = false, int indent = 0);
-    
-private:
-    char Current();
-    char Peek();
-    void Advance();
-    void SkipWhitespace();
-    bool IsAtEnd();
-    void Expect(char c);
-    
-    JsonValue ParseValue();
-    JsonValue ParseObject();
-    JsonValue ParseArray();
-    JsonValue ParseString();
-    JsonValue ParseNumber();
-    JsonValue ParseLiteral();
-    
-    std::string ParseStringValue();
-    std::string UnescapeString(const std::string& str);
-    
-    void ThrowError(const std::string& message);
-};
-
-// Helper functions for accessing JSON values
 namespace json {
-    bool IsNull(const JsonValue& value);
-    bool IsBool(const JsonValue& value);
-    bool IsInt(const JsonValue& value);
-    bool IsDouble(const JsonValue& value);
-    bool IsString(const JsonValue& value);
-    bool IsArray(const JsonValue& value);
-    bool IsObject(const JsonValue& value);
-    
-    bool AsBool(const JsonValue& value, bool defaultValue = false);
-    int AsInt(const JsonValue& value, int defaultValue = 0);
-    double AsDouble(const JsonValue& value, double defaultValue = 0.0);
-    std::string AsString(const JsonValue& value, const std::string& defaultValue = "");
-    std::vector<JsonValue> AsArray(const JsonValue& value);
-    std::unordered_map<std::string, JsonValue> AsObject(const JsonValue& value);
-    
-    // Path access (e.g., "exchange.binance.api_key")
-    JsonValue GetPath(const JsonValue& root, const std::string& path);
-    bool HasPath(const JsonValue& root, const std::string& path);
-}
 
+// Simple alias to nlohmann::json for compatibility
+using JsonValue = nlohmann::json;
+
+// Parse JSON from string
+JsonValue ParseJson(const std::string& jsonStr);
+
+// Convert JSON to string
+std::string JsonToString(const JsonValue& json);
+
+// Helper functions for type checking and value extraction
+bool IsObject(const JsonValue& value);
+bool IsArray(const JsonValue& value);
+bool IsString(const JsonValue& value);
+bool IsNumber(const JsonValue& value);
+bool IsBool(const JsonValue& value);
+bool IsNull(const JsonValue& value);
+
+// Value extraction (with default values)
+std::string GetString(const JsonValue& value, const std::string& defaultVal = "");
+double GetNumber(const JsonValue& value, double defaultVal = 0.0);
+bool GetBool(const JsonValue& value, bool defaultVal = false);
+
+// Object/Array access
+JsonValue GetValue(const JsonValue& obj, const std::string& key);
+bool HasKey(const JsonValue& obj, const std::string& key);
+size_t GetSize(const JsonValue& value);
+
+} // namespace json
 } // namespace ats 
