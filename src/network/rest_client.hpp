@@ -76,7 +76,6 @@ private:
     
     // Additional configuration
     mutable std::string last_error_;
-    long connect_timeout_ms_;
     
 public:
     RestClient();
@@ -146,9 +145,7 @@ private:
                                 std::map<std::string, std::string>* headers);
     
     // Helper methods
-    void SetCommonOptions(CURL* curl, const HttpRequest& request);
     void UpdateStatistics(const HttpResponse& response);
-    std::string BuildQueryString(const std::unordered_map<std::string, std::string>& params);
     std::string UrlEncode(const std::string& str);
 };
 

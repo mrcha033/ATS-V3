@@ -220,10 +220,65 @@ HttpResponse RestClient::Request(const HttpRequest& request) {
     }
     
     try {
-        SetCommonOptions(curl, request);
+        // Set URL
+        curl_easy_setopt(curl, CURLOPT_URL, request.url.c_str());
+        
+        // Set method and body
+        if (request.method == "POST") {
+            curl_easy_setopt(curl, CURLOPT_POST, 1L);
+            if (!request.body.empty()) {
+                curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request.body.c_str());
+                curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, request.body.length());
+            }
+        } else if (request.method == "PUT") {
+            curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
+            if (!request.body.empty()) {
+                curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request.body.c_str());
+                curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, request.body.length());
+            }
+        } else if (request.method == "DELETE") {
+            curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+        }
+        
+        // Set callbacks - Fixed: Use response.body instead of request
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response.body);
+        curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
+        curl_easy_setopt(curl, CURLOPT_HEADERDATA, &response.headers);
+        
+        // Set timeouts
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, request.timeout_ms);
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, connect_timeout_ms_);
+        
+        // Set user agent
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, user_agent_.c_str());
+        
+        // Set SSL verification
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, verify_ssl_ ? 1L : 0L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, verify_ssl_ ? 2L : 0L);
+        
+        // Set redirect options
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, request.follow_redirects ? 1L : 0L);
+        curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
+        
+        // Set headers - Fixed: Properly clean up header list
+        struct curl_slist* header_list = nullptr;
+        for (const auto& header : request.headers) {
+            std::string header_str = header.first + ": " + header.second;
+            header_list = curl_slist_append(header_list, header_str.c_str());
+        }
+        
+        if (header_list) {
+            curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header_list);
+        }
         
         // Perform request
         CURLcode result = curl_easy_perform(curl);
+        
+        // Clean up header list - Fixed: Free the header list to prevent memory leak
+        if (header_list) {
+            curl_slist_free_all(header_list);
+        }
         
         // Get response code
         long response_code = 0;
@@ -312,10 +367,7 @@ void RestClient::SetConnectTimeout(int timeout_ms) {
     connect_timeout_ms_ = timeout_ms;
 }
 
-double RestClient::GetAverageResponseTime() const {
-    if (total_requests_ == 0) return 0.0;
-    return average_response_time_ms_ / total_requests_;
-}
+
 
 double RestClient::GetErrorRate() const {
     if (total_requests_ == 0) return 0.0;
@@ -427,60 +479,7 @@ std::string RestClient::UrlEncode(const std::string& value) {
     return oss.str();
 }
 
-void RestClient::SetCommonOptions(CURL* curl, const HttpRequest& request) {
-#ifdef HAVE_CURL
-    // Set URL
-    curl_easy_setopt(curl, CURLOPT_URL, request.url.c_str());
-    
-    // Set method and body
-    if (request.method == "POST") {
-        curl_easy_setopt(curl, CURLOPT_POST, 1L);
-        if (!request.body.empty()) {
-            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request.body.c_str());
-            curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, request.body.length());
-        }
-    } else if (request.method == "PUT") {
-        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
-        if (!request.body.empty()) {
-            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request.body.c_str());
-            curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, request.body.length());
-        }
-    } else if (request.method == "DELETE") {
-        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
-    }
-    
-    // Set callbacks
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &const_cast<HttpRequest&>(request));
-    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
-    
-    // Set timeouts
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, request.timeout_ms);
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, connect_timeout_ms_);
-    
-    // Set user agent
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, user_agent_.c_str());
-    
-    // Set SSL verification
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, verify_ssl_ ? 1L : 0L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, verify_ssl_ ? 2L : 0L);
-    
-    // Set redirect options
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, request.follow_redirects ? 1L : 0L);
-    curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
-    
-    // Set headers
-    struct curl_slist* header_list = nullptr;
-    for (const auto& header : request.headers) {
-        std::string header_str = header.first + ": " + header.second;
-        header_list = curl_slist_append(header_list, header_str.c_str());
-    }
-    
-    if (header_list) {
-        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header_list);
-    }
-#endif
-}
+
 
 void RestClient::UpdateStatistics(const HttpResponse& response) {
     std::lock_guard<std::mutex> lock(stats_mutex_);

@@ -30,16 +30,14 @@ UpbitExchange::UpbitExchange(const std::string& access_key, const std::string& s
 
 bool UpbitExchange::Connect() {
     try {
-        // Initialize REST client
-        if (!rest_client_->Initialize(BASE_URL)) {
-            Logger::Error("Failed to initialize REST client for Upbit");
-            return false;
-        }
+        // Initialize REST client - Fixed: Use proper API
+        rest_client_->SetBaseUrl(BASE_URL);
+        LOG_INFO("Initialized REST client for Upbit");
 
-        // Test connection with server time
-        Json::Value response;
-        if (!MakeRequest("/v1/market/all", "GET", "", response)) {
-            Logger::Error("Failed to connect to Upbit API");
+        // Test connection with server time  
+        auto response = rest_client_->Get(BASE_URL + "/v1/market/all");
+        if (!response.IsSuccess()) {
+            LOG_ERROR("Failed to connect to Upbit API: {}", response.error_message);
             return false;
         }
 
@@ -51,17 +49,14 @@ bool UpbitExchange::Connect() {
             ws_client_->SetErrorCallback([this](const std::string& error) {
                 OnWebSocketError(error);
             });
-            ws_client_->SetCloseCallback([this]() {
-                OnWebSocketClose();
-            });
         }
 
         connected_ = true;
-        Logger::Info("Successfully connected to Upbit exchange");
+        LOG_INFO("Successfully connected to Upbit exchange");
         return true;
         
     } catch (const std::exception& e) {
-        Logger::Error("Exception in Upbit connection: " + std::string(e.what()));
+        LOG_ERROR("Exception in Upbit connection: {}", e.what());
         return false;
     }
 }
@@ -161,7 +156,7 @@ std::string UpbitExchange::GenerateJWT(const std::string& query_string) {
         return token.sign(jwt::algorithm::hs256{secret_key_});
         
     } catch (const std::exception& e) {
-        Logger::Error("Failed to generate JWT: " + std::string(e.what()));
+        LOG_ERROR("Failed to generate JWT: {}", e.what());
         return "";
     }
 }
