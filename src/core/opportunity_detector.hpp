@@ -172,6 +172,10 @@ private:
     std::string MakeBalanceKey(const std::string& exchange, const std::string& asset) const;
     double GetMinTradeAmount(const std::string& exchange, const std::string& symbol) const;
     double ConvertToUSD(const std::string& symbol, double amount) const;
+    
+    // Symbol parsing utilities
+    std::string ExtractBaseCurrency(const std::string& symbol) const;
+    std::string ExtractQuoteCurrency(const std::string& symbol) const;
 };
 
 } // namespace ats 

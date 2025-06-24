@@ -323,8 +323,32 @@ bool OpportunityDetector::ValidateOpportunity(ArbitrageOpportunity& opportunity)
         return false;
     }
     
-    // TODO: Check balances (requires exchange integration)
-    opportunity.has_sufficient_balance = true; // Assume true for now
+    // Check balances for both exchanges
+    if (config_.require_balance_check) {
+        // Check buy exchange balance for quote currency (e.g., USDT for BTC/USDT)
+        std::string quote_currency = ExtractQuoteCurrency(opportunity.symbol);
+        double required_balance = opportunity.max_volume * opportunity.buy_price;
+        double available_balance = GetExchangeBalance(opportunity.buy_exchange, quote_currency);
+        
+        if (available_balance < required_balance) {
+            opportunity.has_sufficient_balance = false;
+            opportunities_filtered_++;
+            return false;
+        }
+        
+        // Check sell exchange balance for base currency (e.g., BTC for BTC/USDT)  
+        std::string base_currency = ExtractBaseCurrency(opportunity.symbol);
+        double required_base = opportunity.max_volume;
+        double available_base = GetExchangeBalance(opportunity.sell_exchange, base_currency);
+        
+        if (available_base < required_base) {
+            opportunity.has_sufficient_balance = false;
+            opportunities_filtered_++;
+            return false;
+        }
+    }
+    
+    opportunity.has_sufficient_balance = true;
     
     opportunity.is_valid = true;
     valid_opportunities_++;
@@ -332,15 +356,98 @@ bool OpportunityDetector::ValidateOpportunity(ArbitrageOpportunity& opportunity)
     return true;
 }
 
-// Placeholder implementations for complex methods
+// Risk calculation implementation
 double OpportunityDetector::CalculateExecutionRisk(const ArbitrageOpportunity& opportunity) {
-    // Simple risk calculation based on spread and volatility
-    return 0.1; // TODO: Implement proper risk calculation
+    double risk_score = 0.0;
+    
+    // Factor 1: Liquidity risk (30% weight)
+    double liquidity_risk = 0.0;
+    double min_liquidity = std::min(opportunity.buy_liquidity, opportunity.sell_liquidity);
+    if (min_liquidity < config_.min_volume_usd) {
+        liquidity_risk = 0.5; // High risk if liquidity is low
+    } else if (min_liquidity < config_.min_volume_usd * 2.0) {
+        liquidity_risk = 0.3; // Medium risk
+    } else {
+        liquidity_risk = 0.1; // Low risk
+    }
+    risk_score += liquidity_risk * 0.3;
+    
+    // Factor 2: Spread risk (25% weight)
+    double spread_risk = 0.0;
+    if (opportunity.buy_ask > 0 && opportunity.buy_bid > 0) {
+        double buy_spread = (opportunity.buy_ask - opportunity.buy_bid) / opportunity.buy_price;
+        spread_risk += buy_spread * 0.5; // Half weight for buy spread
+    }
+    if (opportunity.sell_ask > 0 && opportunity.sell_bid > 0) {
+        double sell_spread = (opportunity.sell_ask - opportunity.sell_bid) / opportunity.sell_price;
+        spread_risk += sell_spread * 0.5; // Half weight for sell spread
+    }
+    risk_score += std::min(spread_risk, 0.5) * 0.25; // Cap spread risk contribution
+    
+    // Factor 3: Profit margin risk (25% weight)
+    double profit_risk = 0.0;
+    if (opportunity.net_profit_percent < 0.5) {
+        profit_risk = 0.8; // High risk for low profit
+    } else if (opportunity.net_profit_percent < 1.0) {
+        profit_risk = 0.4; // Medium risk
+    } else {
+        profit_risk = 0.1; // Low risk for higher profit
+    }
+    risk_score += profit_risk * 0.25;
+    
+    // Factor 4: Market volatility (20% weight)
+    double volatility_risk = CalculateVolatility(opportunity.symbol);
+    risk_score += volatility_risk * 0.2;
+    
+    return std::min(1.0, std::max(0.0, risk_score));
 }
 
 double OpportunityDetector::AnalyzeSpreadStability(const std::string& symbol) {
-    // TODO: Implement spread stability analysis
-    return 0.8; // 80% stability
+    auto it = price_histories_.find(symbol);
+    if (it == price_histories_.end() || it->second.history.empty()) {
+        return 0.5; // Default stability if no history
+    }
+    
+    std::lock_guard<std::mutex> lock(it->second.mutex);
+    const auto& history = it->second.history;
+    
+    if (history.size() < 3) {
+        return 0.6; // Limited data
+    }
+    
+    // Calculate spread stability over recent history
+    std::vector<double> recent_spreads;
+    for (const auto& comparison : history) {
+        if (!comparison.exchange_prices.empty()) {
+            double spread = comparison.highest_bid - comparison.lowest_ask;
+            if (spread > 0) {
+                recent_spreads.push_back(spread);
+            }
+        }
+    }
+    
+    if (recent_spreads.size() < 2) {
+        return 0.5;
+    }
+    
+    // Calculate coefficient of variation (stability measure)
+    double sum = 0.0;
+    for (double spread : recent_spreads) {
+        sum += spread;
+    }
+    double mean = sum / recent_spreads.size();
+    
+    double variance = 0.0;
+    for (double spread : recent_spreads) {
+        variance += (spread - mean) * (spread - mean);
+    }
+    variance /= recent_spreads.size();
+    
+    double coefficient_of_variation = (mean > 0) ? sqrt(variance) / mean : 1.0;
+    
+    // Convert to stability score (lower CV = higher stability)
+    double stability = std::max(0.0, 1.0 - coefficient_of_variation);
+    return std::min(1.0, stability);
 }
 
 double OpportunityDetector::EstimateTotalFees(const std::string& symbol, 
@@ -392,8 +499,64 @@ void OpportunityDetector::RecordOpportunity(const ArbitrageOpportunity& opportun
 }
 
 double OpportunityDetector::ConvertToUSD(const std::string& symbol, double amount) const {
-    // TODO: Implement USD conversion using price data
-    // For now, assume 1:1 conversion for simplicity
+    // Extract base currency from symbol (e.g., "BTC" from "BTC/USDT")
+    std::string base_currency = ExtractBaseCurrency(symbol);
+    
+    // If already USD or USDT, return as-is
+    if (base_currency == "USD" || base_currency == "USDT" || base_currency == "USDC") {
+        return amount;
+    }
+    
+    // Try to get price from price monitor
+    if (price_monitor_) {
+        // Look for USD pair first
+        std::string usd_symbol = base_currency + "/USDT";
+        Price price;
+        
+        // Try each active exchange to get USD price
+        auto exchanges = GetActiveExchanges();
+        for (const auto& exchange : exchanges) {
+            if (price_monitor_->GetLatestPrice(exchange, usd_symbol, price)) {
+                return amount * price.last;
+            }
+        }
+        
+        // Fallback: try with different USD pairs
+        std::vector<std::string> usd_pairs = {
+            base_currency + "/USD",
+            base_currency + "/USDC"
+        };
+        
+        for (const auto& pair : usd_pairs) {
+            for (const auto& exchange : exchanges) {
+                if (price_monitor_->GetLatestPrice(exchange, pair, price)) {
+                    return amount * price.last;
+                }
+            }
+        }
+    }
+    
+    // Fallback: use approximate values for major cryptocurrencies
+    static const std::unordered_map<std::string, double> approximate_prices = {
+        {"BTC", 45000.0},
+        {"ETH", 3000.0},
+        {"BNB", 300.0},
+        {"ADA", 0.5},
+        {"SOL", 100.0},
+        {"DOT", 7.0},
+        {"LINK", 15.0},
+        {"UNI", 6.0},
+        {"LTC", 150.0},
+        {"BCH", 250.0}
+    };
+    
+    auto it = approximate_prices.find(base_currency);
+    if (it != approximate_prices.end()) {
+        return amount * it->second;
+    }
+    
+    // Last resort: assume 1:1 ratio
+    LOG_WARNING("Could not convert {} to USD, using 1:1 ratio", base_currency);
     return amount;
 }
 
@@ -444,6 +607,80 @@ void OpportunityDetector::RecordDetectionTime() {
                       }),
         detection_timestamps_.end()
     );
+}
+
+std::string OpportunityDetector::ExtractBaseCurrency(const std::string& symbol) const {
+    size_t slash_pos = symbol.find('/');
+    if (slash_pos != std::string::npos) {
+        return symbol.substr(0, slash_pos);
+    }
+    return symbol; // Return as-is if no slash found
+}
+
+std::string OpportunityDetector::ExtractQuoteCurrency(const std::string& symbol) const {
+    size_t slash_pos = symbol.find('/');
+    if (slash_pos != std::string::npos && slash_pos + 1 < symbol.length()) {
+        return symbol.substr(slash_pos + 1);
+    }
+    return "USDT"; // Default to USDT if no slash found
+}
+
+double OpportunityDetector::CalculateVolatility(const std::string& symbol) const {
+    auto it = price_histories_.find(symbol);
+    if (it == price_histories_.end() || it->second.history.empty()) {
+        return 0.3; // Default moderate volatility
+    }
+    
+    std::lock_guard<std::mutex> lock(it->second.mutex);
+    const auto& history = it->second.history;
+    
+    if (history.size() < 3) {
+        return 0.3; // Default for limited data
+    }
+    
+    // Calculate price volatility from recent comparisons
+    std::vector<double> mid_prices;
+    for (const auto& comparison : history) {
+        if (comparison.highest_bid > 0 && comparison.lowest_ask > 0) {
+            double mid_price = (comparison.highest_bid + comparison.lowest_ask) / 2.0;
+            mid_prices.push_back(mid_price);
+        }
+    }
+    
+    if (mid_prices.size() < 2) {
+        return 0.3;
+    }
+    
+    // Calculate returns and volatility
+    std::vector<double> returns;
+    for (size_t i = 1; i < mid_prices.size(); ++i) {
+        if (mid_prices[i-1] > 0) {
+            double return_rate = (mid_prices[i] - mid_prices[i-1]) / mid_prices[i-1];
+            returns.push_back(return_rate);
+        }
+    }
+    
+    if (returns.empty()) {
+        return 0.3;
+    }
+    
+    // Calculate standard deviation of returns
+    double sum = 0.0;
+    for (double ret : returns) {
+        sum += ret;
+    }
+    double mean = sum / returns.size();
+    
+    double variance = 0.0;
+    for (double ret : returns) {
+        variance += (ret - mean) * (ret - mean);
+    }
+    variance /= returns.size();
+    
+    double volatility = sqrt(variance);
+    
+    // Normalize to 0-1 range (values above 10% volatility are considered very high)
+    return std::min(1.0, volatility / 0.1);
 }
 
 } // namespace ats 

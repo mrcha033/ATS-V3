@@ -140,28 +140,28 @@ std::vector<ConfigManager::ExchangeConfig> ConfigManager::GetExchangeConfigs() c
     
     // Binance configuration
     ExchangeConfig binance;
-    binance.name = GetString("binance.name", "binance");
-    binance.api_key = GetString("binance.api_key", "");
-    binance.secret_key = GetString("binance.secret_key", "");
-    binance.base_url = GetString("binance.base_url", "https://api.binance.com");
-    binance.ws_url = GetString("binance.ws_url", "wss://stream.binance.com:9443/ws");
-    binance.enabled = GetBool("binance.enabled", true);
-    binance.rate_limit_per_second = GetInt("binance.rate_limit_per_second", 10);
-    binance.maker_fee = GetDouble("binance.maker_fee", 0.001);
-    binance.taker_fee = GetDouble("binance.taker_fee", 0.001);
+    binance.name = GetString("exchanges.binance.name", "binance");
+    binance.api_key = GetString("exchanges.binance.api_key", "");
+    binance.secret_key = GetString("exchanges.binance.secret_key", "");
+    binance.base_url = GetString("exchanges.binance.base_url", "https://api.binance.com");
+    binance.ws_url = GetString("exchanges.binance.ws_url", "wss://stream.binance.com:9443/ws");
+    binance.enabled = GetBool("exchanges.binance.enabled", true);
+    binance.rate_limit_per_second = GetInt("exchanges.binance.rate_limit_per_second", 10);
+    binance.maker_fee = GetDouble("exchanges.binance.maker_fee", 0.001);
+    binance.taker_fee = GetDouble("exchanges.binance.taker_fee", 0.001);
     configs.push_back(binance);
     
     // Upbit configuration
     ExchangeConfig upbit;
-    upbit.name = GetString("upbit.name", "upbit");
-    upbit.api_key = GetString("upbit.api_key", "");
-    upbit.secret_key = GetString("upbit.secret_key", "");
-    upbit.base_url = GetString("upbit.base_url", "https://api.upbit.com");
-    upbit.ws_url = GetString("upbit.ws_url", "wss://api.upbit.com/websocket/v1");
-    upbit.enabled = GetBool("upbit.enabled", true);
-    upbit.rate_limit_per_second = GetInt("upbit.rate_limit_per_second", 10);
-    upbit.maker_fee = GetDouble("upbit.maker_fee", 0.0025);
-    upbit.taker_fee = GetDouble("upbit.taker_fee", 0.0025);
+    upbit.name = GetString("exchanges.upbit.name", "upbit");
+    upbit.api_key = GetString("exchanges.upbit.api_key", "");
+    upbit.secret_key = GetString("exchanges.upbit.secret_key", "");
+    upbit.base_url = GetString("exchanges.upbit.base_url", "https://api.upbit.com");
+    upbit.ws_url = GetString("exchanges.upbit.ws_url", "wss://api.upbit.com/websocket/v1");
+    upbit.enabled = GetBool("exchanges.upbit.enabled", true);
+    upbit.rate_limit_per_second = GetInt("exchanges.upbit.rate_limit_per_second", 10);
+    upbit.maker_fee = GetDouble("exchanges.upbit.maker_fee", 0.0025);
+    upbit.taker_fee = GetDouble("exchanges.upbit.taker_fee", 0.0025);
     configs.push_back(upbit);
     
     return configs;
