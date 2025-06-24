@@ -20,8 +20,8 @@ namespace ats {
 
 // Type aliases for mutex locks based on availability
 #if HAS_SHARED_MUTEX
-    using shared_lock_type = shared_lock_type;
-    using unique_lock_type = unique_lock_type;
+    using shared_lock_type = std::shared_lock<std::shared_mutex>;
+    using unique_lock_type = std::unique_lock<std::shared_mutex>;
 #else
     using shared_lock_type = std::unique_lock<std::mutex>;  // Fallback to exclusive lock
     using unique_lock_type = std::unique_lock<std::mutex>;

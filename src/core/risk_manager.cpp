@@ -34,7 +34,7 @@ bool RiskManager::Initialize() {
         limits_.stop_loss_threshold = 2.0;
         limits_.kill_switch_loss_threshold = 5000.0;
         
-        LOG_INFO("Risk Manager initialized with max position size: ${:.0f}", 
+        LOG_INFO("Risk Manager initialized with max position size: {:.0f}", 
                 limits_.max_position_size_usd);
         return true;
         

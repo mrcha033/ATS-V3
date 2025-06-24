@@ -50,6 +50,8 @@ UpbitExchange::UpbitExchange(const std::string& access_key, const std::string& s
 
 bool UpbitExchange::Connect() {
     try {
+        SetStatus(ExchangeStatus::CONNECTING);
+        
         // Initialize REST client - Fixed: Use proper API
         rest_client_->SetBaseUrl(BASE_URL);
         LOG_INFO("Initialized REST client for Upbit");
@@ -57,6 +59,7 @@ bool UpbitExchange::Connect() {
         // Test connection with server time  
         auto response = rest_client_->Get(BASE_URL + "/v1/market/all");
         if (!response.IsSuccess()) {
+            SetStatus(ExchangeStatus::ERROR);
             LOG_ERROR("Failed to connect to Upbit API: {}", response.error_message);
             return false;
         }
@@ -72,10 +75,12 @@ bool UpbitExchange::Connect() {
         }
 
         connected_ = true;
+        SetStatus(ExchangeStatus::CONNECTED);
         LOG_INFO("Successfully connected to Upbit exchange");
         return true;
         
     } catch (const std::exception& e) {
+        SetStatus(ExchangeStatus::ERROR);
         LOG_ERROR("Exception in Upbit connection: {}", e.what());
         return false;
     }
@@ -88,6 +93,7 @@ void UpbitExchange::Disconnect() {
         }
         
         connected_ = false;
+        SetStatus(ExchangeStatus::DISCONNECTED);
         LOG_INFO("Disconnected from Upbit exchange");
         
     } catch (const std::exception& e) {
@@ -238,9 +244,17 @@ void UpbitExchange::UpdateRateLimit() {
 
 bool UpbitExchange::MakeRequest(const std::string& endpoint, const std::string& method,
                                const std::string& params, JsonValue& response) {
+    // Retry with rate limiting (max 3 attempts)
+    for (int retry = 0; retry < 3; ++retry) {
+        if (CheckRateLimit()) {
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100 * (retry + 1)));
+    }
+    
     if (!CheckRateLimit()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        return MakeRequest(endpoint, method, params, response);
+        LOG_ERROR("Rate limit exceeded after retries for endpoint: {}", endpoint);
+        return false;
     }
     
     try {
@@ -301,9 +315,17 @@ bool UpbitExchange::MakeAuthenticatedRequest(const std::string& endpoint, const 
         return false;
     }
     
+    // Retry with rate limiting (max 3 attempts)
+    for (int retry = 0; retry < 3; ++retry) {
+        if (CheckRateLimit()) {
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100 * (retry + 1)));
+    }
+    
     if (!CheckRateLimit()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        return MakeAuthenticatedRequest(endpoint, method, params, response);
+        LOG_ERROR("Rate limit exceeded after retries for authenticated endpoint: {}", endpoint);
+        return false;
     }
     
     try {
@@ -1026,7 +1048,7 @@ ExchangeStatus UpbitExchange::GetStatus() const {
 }
 
 std::string UpbitExchange::GetName() const {
-    return "Upbit";
+    return "upbit";
 }
 
 bool UpbitExchange::GetPrice(const std::string& symbol, Price& price) {
