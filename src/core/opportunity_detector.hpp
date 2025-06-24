@@ -66,6 +66,11 @@ private:
     std::atomic<long long> valid_opportunities_;
     std::atomic<double> avg_detection_time_ms_;
     
+    // Detection rate tracking
+    mutable std::mutex detection_rate_mutex_;
+    std::vector<std::chrono::steady_clock::time_point> detection_timestamps_;
+    static constexpr size_t max_detection_timestamps_ = 100;
+    
     // Price history for spread analysis
     struct PriceHistory {
         std::vector<PriceComparison> history;
@@ -160,6 +165,7 @@ private:
     std::vector<std::string> GetActiveExchanges() const;
     void RecordOpportunity(const ArbitrageOpportunity& opportunity);
     void UpdateStatistics(const ArbitrageOpportunity& opportunity, bool is_valid);
+    void RecordDetectionTime();
     
     // Helper methods
     std::string MakeBalanceKey(const std::string& exchange, const std::string& asset) const;

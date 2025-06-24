@@ -197,4 +197,4 @@ if(CURL_FOUND)
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "${CPACK_DEBIAN_PACKAGE_DEPENDS}, libcurl4")
 endif()
 
-include(CPack) 
+include(CPack)

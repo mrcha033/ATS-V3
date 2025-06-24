@@ -47,9 +47,6 @@ struct HttpRequest {
 
 class RestClient {
 private:
-    CURL* curl_handle_;
-    std::mutex curl_mutex_;
-    
     // Configuration
     std::string user_agent_;
     long default_timeout_ms_;

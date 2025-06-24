@@ -101,4 +101,4 @@ if [ "$PI_BUILD" = true ]; then
 fi
 
 echo ""
-echo -e "${GREEN}Build script completed!${NC}" 
+echo -e "${GREEN}Build script completed!${NC}"

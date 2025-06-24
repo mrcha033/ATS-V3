@@ -111,16 +111,34 @@ void PortfolioManager::UpdateExchangeBalances(const std::string& exchange) {
         return;
     }
     
-    // TODO: Get actual balances from exchange
-    // For now, simulate some balances
-    if (exchange == "binance") {
-        UpdateBalance(exchange, "BTC", 0.1, 0.0);
-        UpdateBalance(exchange, "ETH", 1.5, 0.0);
-        UpdateBalance(exchange, "USDT", 5000.0, 0.0);
-    } else if (exchange == "upbit") {
-        UpdateBalance(exchange, "BTC", 0.05, 0.0);
-        UpdateBalance(exchange, "ETH", 0.8, 0.0);
-        UpdateBalance(exchange, "USDT", 3000.0, 0.0);
+    try {
+        // Get actual balances from exchange
+        auto balances = exchange_interface->GetBalances();
+        
+        if (balances.empty()) {
+            LOG_WARNING("No balances returned from exchange {}", exchange);
+            return;
+        }
+        
+        // Update all balances for this exchange
+        for (const auto& balance : balances) {
+            if (balance.total() > 0) { // Only update non-zero balances
+                UpdateBalance(exchange, balance.asset, balance.free, balance.locked);
+            }
+        }
+        
+        LOG_DEBUG("Updated {} balances from exchange {}", balances.size(), exchange);
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR("Failed to fetch balances from exchange {}: {}", exchange, e.what());
+        
+        // Fallback: Keep existing balances or use minimal simulation only if no balances exist
+        auto existing_balances = GetExchangeBalances(exchange);
+        if (existing_balances.empty()) {
+            LOG_WARNING("No existing balances for {}, using minimal placeholder data", exchange);
+            // Only add minimal USDT balance as fallback
+            UpdateBalance(exchange, "USDT", 100.0, 0.0);
+        }
     }
 }
 

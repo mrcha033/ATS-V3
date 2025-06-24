@@ -146,8 +146,25 @@ std::string OpportunityDetector::GetStatus() const {
 }
 
 double OpportunityDetector::GetDetectionRate() const {
-    // TODO: Implement detection rate calculation
-    return 0.0;
+    std::lock_guard<std::mutex> lock(detection_rate_mutex_);
+    
+    if (detection_timestamps_.empty()) {
+        return 0.0;
+    }
+    
+    auto now = std::chrono::steady_clock::now();
+    auto one_minute_ago = now - std::chrono::minutes(1);
+    
+    // Count detections in the last minute
+    size_t recent_detections = 0;
+    for (const auto& timestamp : detection_timestamps_) {
+        if (timestamp >= one_minute_ago) {
+            recent_detections++;
+        }
+    }
+    
+    // Calculate rate as detections per second
+    return static_cast<double>(recent_detections) / 60.0;
 }
 
 double OpportunityDetector::GetValidationRate() const {
@@ -278,6 +295,9 @@ ArbitrageOpportunity OpportunityDetector::EvaluateOpportunity(const std::string&
 bool OpportunityDetector::ValidateOpportunity(ArbitrageOpportunity& opportunity) {
     opportunities_detected_++;
     
+    // Record detection timestamp for rate calculation
+    RecordDetectionTime();
+    
     // Check minimum profit after fees
     if (opportunity.net_profit_percent < config_.min_profit_after_fees) {
         opportunity.meets_min_profit = false;
@@ -400,6 +420,28 @@ double OpportunityDetector::GetExchangeBalance(const std::string& exchange, cons
     std::string key = exchange + ":" + asset;
     auto it = exchange_balances_.find(key);
     return (it != exchange_balances_.end()) ? it->second : 0.0;
+}
+
+void OpportunityDetector::RecordDetectionTime() {
+    std::lock_guard<std::mutex> lock(detection_rate_mutex_);
+    
+    auto now = std::chrono::steady_clock::now();
+    detection_timestamps_.push_back(now);
+    
+    // Keep only recent timestamps to limit memory usage
+    if (detection_timestamps_.size() > max_detection_timestamps_) {
+        detection_timestamps_.erase(detection_timestamps_.begin());
+    }
+    
+    // Clean up old timestamps (older than 5 minutes)
+    auto five_minutes_ago = now - std::chrono::minutes(5);
+    detection_timestamps_.erase(
+        std::remove_if(detection_timestamps_.begin(), detection_timestamps_.end(),
+                      [five_minutes_ago](const auto& timestamp) {
+                          return timestamp < five_minutes_ago;
+                      }),
+        detection_timestamps_.end()
+    );
 }
 
 } // namespace ats 

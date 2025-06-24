@@ -15,8 +15,7 @@ namespace ats {
 // CURL callback functions - defined as class static methods
 
 RestClient::RestClient()
-    : curl_handle_(nullptr)
-    , user_agent_("ATS-V3/1.0")
+    : user_agent_("ATS-V3/1.0")
     , default_timeout_ms_(5000)
     , verify_ssl_(true)
     , pool_running_(false)
@@ -31,11 +30,6 @@ RestClient::RestClient()
 
 RestClient::~RestClient() {
     StopThreadPool();
-#ifdef HAVE_CURL
-    if (curl_handle_) {
-        curl_easy_cleanup(curl_handle_);
-    }
-#endif
 }
 
 void RestClient::StartThreadPool(size_t pool_size) {
