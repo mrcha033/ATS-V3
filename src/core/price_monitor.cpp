@@ -7,6 +7,10 @@
 #include "../data/market_data.hpp"
 #include "../utils/json_parser.hpp"
 
+#include <sstream>
+#include <algorithm>
+#include <chrono>
+
 namespace ats {
 
 PriceMonitor::PriceMonitor(ConfigManager* config_manager)

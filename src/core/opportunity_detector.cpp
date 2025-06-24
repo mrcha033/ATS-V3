@@ -3,6 +3,8 @@
 #include "../utils/logger.hpp"
 #include "price_monitor.hpp"
 
+#include <algorithm>
+
 namespace ats {
 
 OpportunityDetector::OpportunityDetector(ConfigManager* config_manager, PriceMonitor* price_monitor)

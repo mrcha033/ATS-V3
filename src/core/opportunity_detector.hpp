@@ -7,6 +7,7 @@
 #include <atomic>
 #include <mutex>
 #include <thread>
+#include <chrono>
 
 #include "../data/market_data.hpp"
 #include "../core/types.hpp"

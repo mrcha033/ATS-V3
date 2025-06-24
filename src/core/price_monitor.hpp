@@ -7,6 +7,7 @@
 #include <mutex>
 #include <unordered_map>
 #include <functional>
+#include <chrono>
 
 #include "../core/types.hpp"
 
