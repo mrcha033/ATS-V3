@@ -91,6 +91,23 @@ private:
     std::unordered_map<std::string, Ticker> latest_tickers_;
     std::unordered_map<std::string, MarketStats> market_stats_;
     
+    // Trade history and statistics
+    std::unordered_map<std::string, std::vector<Trade>> trade_histories_;
+    
+    struct TradeStatistics {
+        double volume_1h = 0.0;
+        double volume_24h = 0.0;
+        double vwap = 0.0;
+        double vwap_total_value = 0.0;
+        double vwap_total_volume = 0.0;
+        double last_price = 0.0;
+        long long last_trade_time = 0;
+        std::vector<std::pair<double, long long>> price_history; // price, timestamp
+        
+        TradeStatistics() = default;
+    };
+    std::unordered_map<std::string, TradeStatistics> trade_stats_;
+    
     mutable std::shared_mutex data_mutex_;
     
     // Lock type aliases for convenience
@@ -143,6 +160,7 @@ public:
     
 private:
     std::string MakeKey(const std::string& exchange, const std::string& symbol) const;
+    void UpdateTradeStatistics(const std::string& key, const Trade& trade);
     void CalculateVolatility(const std::string& symbol, MarketStats& stats) const;
     void CalculateSpread(const std::string& symbol, MarketStats& stats) const;
     void CalculateLiquidity(const std::string& symbol, MarketStats& stats) const;

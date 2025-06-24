@@ -208,18 +208,79 @@ HealthCheckResult HealthCheck::CheckSystemResources() {
     }
 }
 
-HealthCheckResult HealthCheck::CheckDiskSpace() {
-    double available_gb = GetAvailableDiskSpaceGB(".");
-    
-    if (available_gb < 0.5) {
-        return HealthCheckResult("DiskSpace", HealthStatus::CRITICAL, 
-                               "Critical: Less than 0.5GB available");
-    } else if (available_gb < 2.0) {
-        return HealthCheckResult("DiskSpace", HealthStatus::WARNING, 
-                               "Warning: Less than 2GB available");
-    } else {
-        return HealthCheckResult("DiskSpace", HealthStatus::HEALTHY, 
-                               "Sufficient disk space: " + std::to_string(available_gb) + " GB");
+HealthCheckResult HealthCheck::CheckDiskHealth() {
+    try {
+        // Check filesystem health by testing read/write operations
+        std::string test_file = "health_check_disk_test.tmp";
+        
+        // Test write operation
+        {
+            std::ofstream outfile(test_file, std::ios::binary | std::ios::trunc);
+            if (!outfile.is_open()) {
+                return HealthCheckResult("DiskHealth", HealthStatus::CRITICAL,
+                    "Cannot create test file - disk may be full or read-only");
+            }
+            
+            // Write test data
+            std::string test_data = "ATS Health Check Test Data";
+            outfile.write(test_data.c_str(), test_data.length());
+            if (outfile.fail()) {
+                outfile.close();
+                std::filesystem::remove(test_file);
+                return HealthCheckResult("DiskHealth", HealthStatus::CRITICAL,
+                    "Write operation failed - disk may have errors");
+            }
+        }
+        
+        // Test read operation
+        {
+            std::ifstream infile(test_file, std::ios::binary);
+            if (!infile.is_open()) {
+                std::filesystem::remove(test_file);
+                return HealthCheckResult("DiskHealth", HealthStatus::CRITICAL,
+                    "Cannot read test file - disk read error");
+            }
+            
+            std::string read_data;
+            char buffer[256];
+            infile.read(buffer, sizeof(buffer));
+            read_data.assign(buffer, infile.gcount());
+            
+            if (read_data.find("ATS Health Check") == std::string::npos) {
+                infile.close();
+                std::filesystem::remove(test_file);
+                return HealthCheckResult("DiskHealth", HealthStatus::WARNING,
+                    "Data integrity check failed - possible disk corruption");
+            }
+        }
+        
+        // Cleanup test file
+        std::filesystem::remove(test_file);
+        
+        // Check disk space
+        try {
+            auto space_info = std::filesystem::space(".");
+            double usage_percent = 100.0 * (1.0 - (double)space_info.available / space_info.capacity);
+            
+            if (usage_percent > 95.0) {
+                return HealthCheckResult("DiskHealth", HealthStatus::CRITICAL,
+                    "Disk usage critical: " + std::to_string(usage_percent) + "%");
+            } else if (usage_percent > 85.0) {
+                return HealthCheckResult("DiskHealth", HealthStatus::WARNING,
+                    "Disk usage high: " + std::to_string(usage_percent) + "%");
+            }
+            
+            return HealthCheckResult("DiskHealth", HealthStatus::HEALTHY,
+                "Disk health OK, usage: " + std::to_string(usage_percent) + "%");
+                
+        } catch (const std::filesystem::filesystem_error& e) {
+            return HealthCheckResult("DiskHealth", HealthStatus::WARNING,
+                "Cannot check disk space: " + std::string(e.what()));
+        }
+        
+    } catch (const std::exception& e) {
+        return HealthCheckResult("DiskHealth", HealthStatus::CRITICAL,
+            "Disk health check failed: " + std::string(e.what()));
     }
 }
 

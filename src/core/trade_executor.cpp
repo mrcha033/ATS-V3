@@ -243,8 +243,23 @@ double TradeExecutor::GetSuccessRate() const {
 }
 
 double TradeExecutor::GetAvgExecutionTime() const {
-    // TODO: Calculate from historical data
-    return 0.0;
+    std::lock_guard<std::mutex> lock(history_mutex_);
+    
+    if (execution_history_.empty()) {
+        return 0.0;
+    }
+    
+    double total_time = 0.0;
+    size_t completed_trades = 0;
+    
+    for (const auto& result : execution_history_) {
+        if (result.final_state == TradeState::COMPLETED) {
+            total_time += result.total_execution_time_ms;
+            completed_trades++;
+        }
+    }
+    
+    return completed_trades > 0 ? total_time / completed_trades : 0.0;
 }
 
 double TradeExecutor::GetAvgProfitPerTrade() const {

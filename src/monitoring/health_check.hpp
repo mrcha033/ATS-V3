@@ -74,7 +74,7 @@ public:
     HealthCheckResult CheckNetworkConnectivity();
     HealthCheckResult CheckExchangeConnections();
     HealthCheckResult CheckSystemResources();
-    HealthCheckResult CheckDiskSpace();
+    HealthCheckResult CheckDiskHealth();
     HealthCheckResult CheckMemoryUsage();
     HealthCheckResult CheckCpuTemperature();
     HealthCheckResult CheckDatabaseConnection();

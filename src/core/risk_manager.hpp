@@ -206,6 +206,9 @@ public:
     void PerformWeeklyReset();
     void PerformMonthlyReset();
 
+    // External notification system
+    void NotifyExternalSystems(const std::string& reason);
+
 private:
     // Risk calculation methods
     double CalculatePositionRisk(const ArbitrageOpportunity& opportunity, double volume) const;
