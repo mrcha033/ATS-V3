@@ -5,6 +5,7 @@
 #include <memory>
 #include <functional>
 #include <chrono>
+#include <mutex>
 #include "../core/types.hpp"
 
 namespace ats {
@@ -52,13 +53,18 @@ public:
     
     // Health check
     virtual bool IsHealthy() const = 0;
-    virtual std::string GetLastError() const = 0;
+    virtual std::string GetLastError() const {
+        std::lock_guard<std::mutex> lock(error_mutex_);
+        return last_error_;
+    }
     
 protected:
     mutable std::string last_error_;
+    mutable std::mutex error_mutex_;
     ExchangeStatus status_ = ExchangeStatus::DISCONNECTED;
     
     void SetError(const std::string& error) const {
+        std::lock_guard<std::mutex> lock(error_mutex_);
         last_error_ = error;
     }
     

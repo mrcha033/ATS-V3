@@ -73,6 +73,43 @@ struct ConfigValue {
         }
         return *this;
     }
+    
+    // Move constructor
+    ConfigValue(ConfigValue&& other) noexcept : type(other.type) {
+        switch (type) {
+            case String: string_val = other.string_val; other.string_val = nullptr; break;
+            case Int: int_val = other.int_val; break;
+            case Double: double_val = other.double_val; break;
+            case Bool: bool_val = other.bool_val; break;
+            case StringArray: array_val = other.array_val; other.array_val = nullptr; break;
+        }
+        other.type = Int; // Set moved-from object to safe state
+        other.int_val = 0;
+    }
+    
+    // Move assignment operator
+    ConfigValue& operator=(ConfigValue&& other) noexcept {
+        if (this != &other) {
+            // Clean up current object
+            if (type == String) delete string_val;
+            else if (type == StringArray) delete array_val;
+            
+            // Move from other
+            type = other.type;
+            switch (type) {
+                case String: string_val = other.string_val; other.string_val = nullptr; break;
+                case Int: int_val = other.int_val; break;
+                case Double: double_val = other.double_val; break;
+                case Bool: bool_val = other.bool_val; break;
+                case StringArray: array_val = other.array_val; other.array_val = nullptr; break;
+            }
+            
+            // Set moved-from object to safe state
+            other.type = Int;
+            other.int_val = 0;
+        }
+        return *this;
+    }
 };
 
 class ConfigManager {

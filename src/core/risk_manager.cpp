@@ -143,8 +143,9 @@ double RiskManager::CalculateMaxPositionSize(const ArbitrageOpportunity& opportu
     double remaining_exposure = limits_.max_total_exposure_usd - current_exposure;
     max_size = std::min(max_size, remaining_exposure);
     
-    // Check opportunity constraints
-    max_size = std::min(max_size, opportunity.max_volume);
+    // Check opportunity constraints - convert max_volume to USD for proper comparison
+    double opportunity_max_volume_usd = opportunity.max_volume * opportunity.buy_price;
+    max_size = std::min(max_size, opportunity_max_volume_usd);
     
     return std::max(0.0, max_size);
 }

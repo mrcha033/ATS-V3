@@ -276,10 +276,55 @@ bool ArbitrageEngine::InitializeComponents() {
 }
 
 void ArbitrageEngine::ProcessOpportunity(const ArbitrageOpportunity& opportunity) {
-    // TODO: Implement opportunity processing in Phase 3
     opportunities_found_++;
-    LOG_DEBUG("Processing arbitrage opportunity for {}: {:.2f}% profit", 
-              opportunity.symbol, opportunity.profit_percent);
+    
+    try {
+        LOG_DEBUG("Processing arbitrage opportunity for {}: {:.2f}% profit between {} and {}", 
+                  opportunity.symbol, opportunity.profit_percent,
+                  opportunity.buy_exchange, opportunity.sell_exchange);
+        
+        // Validate opportunity
+        if (!opportunity.IsExecutable()) {
+            LOG_DEBUG("Opportunity not executable: {}", opportunity.symbol);
+            return;
+        }
+        
+        // Risk assessment
+        if (!risk_manager_) {
+            LOG_ERROR("Risk manager not available for opportunity assessment");
+            return;
+        }
+        
+        auto risk_assessment = risk_manager_->AssessOpportunity(opportunity);
+        if (!risk_assessment.is_approved) {
+            LOG_DEBUG("Opportunity rejected by risk manager: {}", 
+                     risk_assessment.rejections.empty() ? "Unknown reason" : risk_assessment.rejections[0]);
+            return;
+        }
+        
+        // Calculate optimal position size
+        double position_size = std::min(opportunity.max_volume, risk_assessment.position_size_limit);
+        if (position_size <= 0) {
+            LOG_DEBUG("Invalid position size for opportunity: {}", opportunity.symbol);
+            return;
+        }
+        
+        // Execute trade through trade executor
+        if (trade_executor_) {
+            std::string trade_id = trade_executor_->ExecuteTrade(opportunity, position_size);
+            if (!trade_id.empty()) {
+                LOG_INFO("Trade execution started for {}: {} volume {} USD", 
+                        opportunity.symbol, trade_id, position_size);
+            } else {
+                LOG_ERROR("Failed to start trade execution for {}", opportunity.symbol);
+            }
+        } else {
+            LOG_ERROR("Trade executor not available");
+        }
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR("Error processing opportunity for {}: {}", opportunity.symbol, e.what());
+    }
 }
 
 void ArbitrageEngine::UpdateStatistics(const ArbitrageOpportunity& opportunity, bool executed) {

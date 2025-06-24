@@ -50,16 +50,22 @@ private:
     bool file_output_ = true;
     std::string log_file_path_ = "logs/ats_v3.log";
     
+    // Persistent file stream for better performance
+    mutable std::ofstream log_file_stream_;
+    mutable std::mutex log_mutex_;
+    
     Logger() = default;
     
 public:
     static void Initialize();
     static Logger& Instance();
     
+    ~Logger();
+    
     void SetLevel(LogLevel level) noexcept { min_level_ = level; }
     void SetConsoleOutput(bool enabled) noexcept { console_output_ = enabled; }
     void SetFileOutput(bool enabled) noexcept { file_output_ = enabled; }
-    void SetLogFile(const std::string& path) noexcept { log_file_path_ = path; }
+    void SetLogFile(const std::string& path);
     
     void Log(LogLevel level, const std::string& message);
     
@@ -142,6 +148,10 @@ private:
     
     std::string FormatTimestamp();
     std::string LevelToString(LogLevel level);
+    
+    // File stream management helpers
+    void OpenLogFile();
+    void CloseLogFile();
 };
 
 // Convenience macros

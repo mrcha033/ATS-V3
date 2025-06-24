@@ -28,6 +28,9 @@ Logger& Logger::Instance() {
         
         // Create logs directory if it doesn't exist
         std::filesystem::create_directories("logs");
+        
+        // Open the log file
+        instance_->OpenLogFile();
     }
     return *instance_;
 }
@@ -37,8 +40,7 @@ void Logger::Log(LogLevel level, const std::string& message) {
         return;
     }
     
-    static std::mutex log_mutex;
-    std::lock_guard<std::mutex> lock(log_mutex);
+    std::lock_guard<std::mutex> lock(log_mutex_);
     
     std::string timestamp = FormatTimestamp();
     std::string level_str = LevelToString(level);
@@ -53,13 +55,10 @@ void Logger::Log(LogLevel level, const std::string& message) {
         }
     }
     
-    // File output
-    if (file_output_) {
-        std::ofstream log_file(log_file_path_, std::ios::app);
-        if (log_file.is_open()) {
-            log_file << log_line << std::endl;
-            log_file.close();
-        }
+    // File output using persistent stream
+    if (file_output_ && log_file_stream_.is_open()) {
+        log_file_stream_ << log_line << std::endl;
+        log_file_stream_.flush(); // Ensure immediate write for critical logs
     }
 }
 
@@ -124,6 +123,36 @@ std::string Logger::LevelToString(LogLevel level) {
         case LogLevel::ERR:      return "ERROR";
         case LogLevel::CRITICAL: return "CRIT";
         default:                 return "UNKNOWN";
+    }
+}
+
+Logger::~Logger() {
+    CloseLogFile();
+}
+
+void Logger::SetLogFile(const std::string& path) {
+    std::lock_guard<std::mutex> lock(log_mutex_);
+    if (path != log_file_path_) {
+        CloseLogFile();
+        log_file_path_ = path;
+        if (file_output_) {
+            OpenLogFile();
+        }
+    }
+}
+
+void Logger::OpenLogFile() {
+    if (!log_file_stream_.is_open()) {
+        log_file_stream_.open(log_file_path_, std::ios::app);
+        if (!log_file_stream_.is_open()) {
+            std::cerr << "Failed to open log file: " << log_file_path_ << std::endl;
+        }
+    }
+}
+
+void Logger::CloseLogFile() {
+    if (log_file_stream_.is_open()) {
+        log_file_stream_.close();
     }
 }
 
