@@ -5,6 +5,8 @@
 #include "risk_manager.hpp"
 #include "trade_executor.hpp"
 #include "portfolio_manager.hpp"
+#include "../exchange/binance_exchange.hpp"
+#include "../exchange/upbit_exchange.hpp"
 
 namespace ats {
 
@@ -184,9 +186,43 @@ bool ArbitrageEngine::InitializeExchanges() {
     
     LOG_INFO("Found {} exchange configurations", exchange_configs.size());
     
-    // TODO: Create and initialize exchange instances
-    // This will be implemented when we add specific exchange implementations
+    // Create and initialize exchange instances
+    for (const auto& config : exchange_configs) {
+        if (!config.enabled) {
+            LOG_INFO("Skipping disabled exchange: {}", config.name);
+            continue;
+        }
+        
+        std::unique_ptr<ExchangeInterface> exchange = CreateExchange(config);
+        if (!exchange) {
+            LOG_ERROR("Failed to create exchange instance for: {}", config.name);
+            continue;
+        }
+        
+        // Connect to exchange
+        if (!exchange->Connect()) {
+            LOG_ERROR("Failed to connect to exchange: {}", config.name);
+            continue;
+        }
+        
+        // Verify connection
+        if (!exchange->IsHealthy()) {
+            LOG_WARNING("Exchange {} connected but health check failed: {}", 
+                       config.name, exchange->GetLastError());
+        }
+        
+        // Add to exchanges list
+        exchanges_.push_back(std::move(exchange));
+        LOG_INFO("Successfully initialized exchange: {}", config.name);
+    }
     
+    if (exchanges_.empty()) {
+        LOG_ERROR("No exchanges were successfully initialized");
+        return false;
+    }
+    
+    LOG_INFO("Initialized {} out of {} configured exchanges", 
+             exchanges_.size(), exchange_configs.size());
     return true;
 }
 
@@ -383,6 +419,26 @@ void ArbitrageEngine::OnTradeCompleted(const ExecutionResult& result) {
         
         // Update P&L
         risk_manager_->UpdatePnL(result.realized_pnl);
+    }
+}
+
+std::unique_ptr<ExchangeInterface> ArbitrageEngine::CreateExchange(const ConfigManager::ExchangeConfig& config) {
+    try {
+        if (config.name == "binance") {
+            auto exchange = std::make_unique<BinanceExchange>(config.api_key, config.secret_key);
+            LOG_INFO("Created Binance exchange instance");
+            return std::move(exchange);
+        } else if (config.name == "upbit") {
+            auto exchange = std::make_unique<UpbitExchange>(config.api_key, config.secret_key);
+            LOG_INFO("Created Upbit exchange instance");
+            return std::move(exchange);
+        } else {
+            LOG_ERROR("Unknown exchange type: {}", config.name);
+            return nullptr;
+        }
+    } catch (const std::exception& e) {
+        LOG_ERROR("Exception creating exchange {}: {}", config.name, e.what());
+        return nullptr;
     }
 }
 

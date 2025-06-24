@@ -411,13 +411,24 @@ bool HealthCheck::PingHost(const std::string& host, int timeout_ms) {
 }
 
 bool HealthCheck::CheckFileWritable(const std::string& filepath) {
+    std::string temp_test_file = filepath;
+    bool is_temp_file = false;
+    
     try {
+        // For test files, create a unique temporary file instead of modifying existing files
+        if (filepath.find("test.tmp") != std::string::npos || 
+            filepath.find("health_check") != std::string::npos) {
+            auto timestamp = std::chrono::system_clock::now().time_since_epoch().count();
+            temp_test_file = filepath + ".health_test_" + std::to_string(timestamp);
+            is_temp_file = true;
+        }
+        
         // Ensure directory exists
-        std::filesystem::path file_path(filepath);
+        std::filesystem::path file_path(temp_test_file);
         std::filesystem::create_directories(file_path.parent_path());
         
         // Try to write a test file
-        std::ofstream test_file(filepath, std::ios::app);
+        std::ofstream test_file(temp_test_file, std::ios::out | std::ios::trunc);
         if (!test_file.is_open()) {
             return false;
         }
@@ -426,16 +437,38 @@ bool HealthCheck::CheckFileWritable(const std::string& filepath) {
         test_file.close();
         
         // Try to read it back
-        std::ifstream read_file(filepath);
-        if (!read_file.is_open()) {
-            return false;
+        std::ifstream read_file(temp_test_file);
+        bool read_success = read_file.is_open();
+        if (read_success) {
+            std::string line;
+            read_success = std::getline(read_file, line) && !line.empty();
         }
         read_file.close();
         
-        return true;
+        // Clean up temporary test file
+        if (is_temp_file) {
+            try {
+                std::filesystem::remove(temp_test_file);
+                LOG_DEBUG("Cleaned up temporary health check file: {}", temp_test_file);
+            } catch (const std::exception& e) {
+                LOG_WARNING("Failed to remove temporary health check file {}: {}", temp_test_file, e.what());
+            }
+        }
+        
+        return read_success;
         
     } catch (const std::exception& e) {
         LOG_ERROR("File write check failed for {}: {}", filepath, e.what());
+        
+        // Attempt cleanup even on failure
+        if (is_temp_file) {
+            try {
+                std::filesystem::remove(temp_test_file);
+            } catch (...) {
+                // Ignore cleanup errors in error path
+            }
+        }
+        
         return false;
     }
 }

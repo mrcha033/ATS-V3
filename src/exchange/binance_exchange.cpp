@@ -6,6 +6,11 @@
 #include <algorithm>
 #include <cmath>
 
+#ifdef HAVE_OPENSSL
+#include <openssl/hmac.h>
+#include <openssl/evp.h>
+#endif
+
 namespace ats {
 
 BinanceExchange::BinanceExchange(const std::string& api_key, const std::string& secret_key)
@@ -359,10 +364,60 @@ bool BinanceExchange::IsHealthy() const {
 }
 
 // Private helper methods
+std::string BinanceExchange::UrlEncode(const std::string& value) const {
+    std::ostringstream escaped;
+    escaped.fill('0');
+    escaped << std::hex;
+
+    for (char c : value) {
+        // Keep alphanumeric and other accepted characters intact
+        if (std::isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+            escaped << c;
+        } else {
+            // Encode other characters
+            escaped << std::uppercase;
+            escaped << '%' << std::setw(2) << static_cast<int>(static_cast<unsigned char>(c));
+            escaped << std::nouppercase;
+        }
+    }
+
+    return escaped.str();
+}
+
 std::string BinanceExchange::CreateSignature(const std::string& params) const {
-    // Simplified signature creation - real implementation would use HMAC-SHA256
-    // This is a placeholder implementation
-    return "dummy_signature";
+#ifdef HAVE_OPENSSL
+    if (secret_key_.empty()) {
+        LOG_ERROR("Secret key not provided for HMAC signature");
+        return "";
+    }
+    
+    try {
+        unsigned char hash[EVP_MAX_MD_SIZE];
+        unsigned int hash_len = 0;
+        
+        HMAC(EVP_sha256(), 
+             secret_key_.c_str(), secret_key_.length(),
+             reinterpret_cast<const unsigned char*>(params.c_str()), params.length(),
+             hash, &hash_len);
+        
+        // Convert to hexadecimal string
+        std::ostringstream hex_stream;
+        hex_stream << std::hex << std::setfill('0');
+        for (unsigned int i = 0; i < hash_len; ++i) {
+            hex_stream << std::setw(2) << static_cast<unsigned int>(hash[i]);
+        }
+        
+        return hex_stream.str();
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR("HMAC signature generation failed: {}", e.what());
+        return "";
+    }
+#else
+    LOG_ERROR("OpenSSL not available - cannot create HMAC-SHA256 signature for Binance");
+    LOG_ERROR("Build with OpenSSL support to enable authenticated API requests");
+    return ""; // Return empty string to force authentication failure
+#endif
 }
 
 std::string BinanceExchange::GetTimestamp() const {
@@ -398,15 +453,24 @@ std::string BinanceExchange::ConvertSymbolBack(const std::string& binance_symbol
 std::string BinanceExchange::MakeAuthenticatedRequest(const std::string& endpoint, 
                                                      const std::string& method,
                                                      const std::unordered_map<std::string, std::string>& params) {
-    // Build query string
+    if (api_key_.empty() || secret_key_.empty()) {
+        LOG_ERROR("Authentication credentials not provided for Binance endpoint: {}", endpoint);
+        return "";
+    }
+    
+    // Build query string with URL encoding
     std::string query_string;
     for (const auto& param : params) {
         if (!query_string.empty()) query_string += "&";
-        query_string += param.first + "=" + param.second;
+        query_string += UrlEncode(param.first) + "=" + UrlEncode(param.second);
     }
     
     // Create signature
     std::string signature = CreateSignature(query_string);
+    if (signature.empty()) {
+        LOG_ERROR("Failed to create signature for Binance endpoint: {}", endpoint);
+        return "";
+    }
     query_string += "&signature=" + signature;
     
     // Make request with authentication headers
@@ -436,7 +500,7 @@ std::string BinanceExchange::MakePublicRequest(const std::string& endpoint,
         bool first = true;
         for (const auto& param : params) {
             if (!first) url += "&";
-            url += param.first + "=" + param.second;
+            url += UrlEncode(param.first) + "=" + UrlEncode(param.second);
             first = false;
         }
     }

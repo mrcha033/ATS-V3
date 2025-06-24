@@ -793,11 +793,52 @@ bool RiskManager::IsSameWeek(const std::chrono::system_clock::time_point& time1,
     std::tm tm1 = *std::gmtime(&tt1);
     std::tm tm2 = *std::gmtime(&tt2);
     
-    // Calculate week number
-    int week1 = tm1.tm_yday / 7;
-    int week2 = tm2.tm_yday / 7;
+    // Helper function to calculate ISO week number
+    auto iso_week = [](const std::tm& tm) -> std::pair<int, int> {
+        std::tm temp = tm;
+        
+        // Calculate day of year
+        int day_of_year = temp.tm_yday + 1; // tm_yday is 0-based
+        
+        // Calculate day of week (Monday = 1, Sunday = 7)
+        int day_of_week = (temp.tm_wday == 0) ? 7 : temp.tm_wday;
+        
+        // Calculate the Monday of the first week
+        int first_monday = 1 + (8 - day_of_week) % 7;
+        if (first_monday > 4) {
+            first_monday -= 7; // First week must contain at least 4 days of January
+        }
+        
+        // Calculate week number
+        int week;
+        if (day_of_year < first_monday) {
+            // This day belongs to the last week of previous year
+            week = 52; // or 53, but for simplicity use 52
+            return {temp.tm_year + 1900 - 1, week};
+        } else {
+            week = ((day_of_year - first_monday) / 7) + 1;
+            
+            // Check if this week belongs to next year
+            if (week >= 53) {
+                // Check if this is actually week 1 of next year
+                int days_in_year = ((temp.tm_year + 1900) % 4 == 0 && 
+                                   ((temp.tm_year + 1900) % 100 != 0 || 
+                                    (temp.tm_year + 1900) % 400 == 0)) ? 366 : 365;
+                int last_day_of_week = (day_of_year - first_monday) % 7 + 1;
+                
+                if (day_of_year + (7 - last_day_of_week) > days_in_year) {
+                    return {temp.tm_year + 1900 + 1, 1};
+                }
+            }
+            
+            return {temp.tm_year + 1900, week};
+        }
+    };
     
-    return (tm1.tm_year == tm2.tm_year && week1 == week2);
+    auto week1 = iso_week(tm1);
+    auto week2 = iso_week(tm2);
+    
+    return (week1.first == week2.first && week1.second == week2.second);
 }
 
 bool RiskManager::IsSameMonth(const std::chrono::system_clock::time_point& time1,

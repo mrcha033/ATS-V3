@@ -69,8 +69,47 @@ std::string Logger::FormatTimestamp() {
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         now.time_since_epoch()) % 1000;
     
+    // Thread-safe timestamp formatting
+    std::tm tm_buf;
+    std::tm* tm_ptr = nullptr;
+    
+#ifdef _WIN32
+    // Windows: use localtime_s
+    if (localtime_s(&tm_buf, &time_t) == 0) {
+        tm_ptr = &tm_buf;
+    }
+#else
+    // POSIX: use localtime_r
+    tm_ptr = localtime_r(&time_t, &tm_buf);
+#endif
+    
     std::ostringstream oss;
-    oss << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S");
+    if (tm_ptr) {
+        oss << std::put_time(tm_ptr, "%Y-%m-%d %H:%M:%S");
+    } else {
+        // Fallback: use UTC time if local time conversion fails
+#ifdef _WIN32
+        // Windows: use gmtime_s for UTC fallback
+        if (gmtime_s(&tm_buf, &time_t) == 0) {
+            oss << std::put_time(&tm_buf, "%Y-%m-%d %H:%M:%S");
+            oss << " UTC";
+        } else {
+            // Last resort: use raw timestamp
+            oss << time_t;
+        }
+#else
+        // POSIX: use gmtime_r for UTC fallback
+        tm_ptr = gmtime_r(&time_t, &tm_buf);
+        if (tm_ptr) {
+            oss << std::put_time(tm_ptr, "%Y-%m-%d %H:%M:%S");
+            oss << " UTC";
+        } else {
+            // Last resort: use raw timestamp
+            oss << time_t;
+        }
+#endif
+    }
+    
     oss << '.' << std::setfill('0') << std::setw(3) << ms.count();
     
     return oss.str();

@@ -79,6 +79,7 @@ public:
     
 private:
     // Helper methods
+    std::string UrlEncode(const std::string& value) const;
     std::string CreateSignature(const std::string& params) const;
     std::string GetTimestamp() const;
     std::string ConvertSymbol(const std::string& standard_symbol) const;

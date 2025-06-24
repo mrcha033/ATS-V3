@@ -141,10 +141,14 @@ bool TradeExecutor::CancelTrade(const std::string& trade_id) {
     return false;
 }
 
-ActiveTrade* TradeExecutor::GetActiveTrade(const std::string& trade_id) {
+bool TradeExecutor::GetActiveTrade(const std::string& trade_id, ActiveTrade& trade_out) {
     std::lock_guard<std::mutex> lock(active_trades_mutex_);
     auto it = active_trades_.find(trade_id);
-    return (it != active_trades_.end()) ? &it->second : nullptr;
+    if (it != active_trades_.end()) {
+        trade_out = it->second;  // Copy the trade data
+        return true;
+    }
+    return false;
 }
 
 std::vector<ActiveTrade> TradeExecutor::GetActiveTrades() const {

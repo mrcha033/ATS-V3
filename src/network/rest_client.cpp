@@ -234,23 +234,37 @@ HttpResponse RestClient::Request(const HttpRequest& request) {
         curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, request.follow_redirects ? 1L : 0L);
         curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
         
-        // Set headers - Fixed: Properly clean up header list
+        // Set headers - Using RAII for automatic cleanup
         struct curl_slist* header_list = nullptr;
-        for (const auto& header : request.headers) {
-            std::string header_str = header.first + ": " + header.second;
-            header_list = curl_slist_append(header_list, header_str.c_str());
-        }
+        auto cleanup_header_list = [&header_list]() {
+            if (header_list) {
+                curl_slist_free_all(header_list);
+                header_list = nullptr;
+            }
+        };
         
-        if (header_list) {
-            curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header_list);
-        }
+        CURLcode result = CURLE_OK;
         
-        // Perform request
-        CURLcode result = curl_easy_perform(curl);
-        
-        // Clean up header list - Fixed: Free the header list to prevent memory leak
-        if (header_list) {
-            curl_slist_free_all(header_list);
+        try {
+            for (const auto& header : request.headers) {
+                std::string header_str = header.first + ": " + header.second;
+                header_list = curl_slist_append(header_list, header_str.c_str());
+            }
+            
+            if (header_list) {
+                curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header_list);
+            }
+            
+            // Perform request
+            result = curl_easy_perform(curl);
+            
+            // Clean up header list
+            cleanup_header_list();
+            
+        } catch (...) {
+            // Ensure cleanup even if exception occurs
+            cleanup_header_list();
+            throw;
         }
         
         // Get response code

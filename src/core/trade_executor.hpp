@@ -152,7 +152,7 @@ public:
     bool CancelTrade(const std::string& trade_id);
     
     // Trade monitoring
-    ActiveTrade* GetActiveTrade(const std::string& trade_id);
+    bool GetActiveTrade(const std::string& trade_id, ActiveTrade& trade_out);
     std::vector<ActiveTrade> GetActiveTrades() const;
     TradeState GetTradeState(const std::string& trade_id) const;
     bool IsTradeActive(const std::string& trade_id) const;

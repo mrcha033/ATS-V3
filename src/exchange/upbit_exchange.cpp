@@ -191,8 +191,9 @@ std::string UpbitExchange::GenerateJWT(const std::string& query_string) {
 
         return token.sign(jwt::algorithm::hs256{secret_key_});
 #else
-        LOG_WARNING("JWT library not available - using placeholder token");
-        return "placeholder_jwt_token";
+        LOG_ERROR("JWT library not available - cannot create secure authentication token");
+        LOG_ERROR("Authenticated requests will fail without proper JWT implementation");
+        return ""; // Return empty string to force authentication failure
 #endif
         
     } catch (const std::exception& e) {
@@ -208,7 +209,12 @@ std::unordered_map<std::string, std::string> UpbitExchange::GetAuthHeaders(const
         std::string jwt_token = GenerateJWT(query_string);
         if (!jwt_token.empty()) {
             headers["Authorization"] = "Bearer " + jwt_token;
+        } else {
+            LOG_ERROR("Failed to generate JWT token - authenticated requests will fail");
+            // Don't add Authorization header with invalid token
         }
+    } else {
+        LOG_WARNING("No API credentials provided - operating in public API mode only");
     }
     
     headers["Content-Type"] = "application/json";
@@ -311,9 +317,14 @@ bool UpbitExchange::MakeRequest(const std::string& endpoint, const std::string& 
 bool UpbitExchange::MakeAuthenticatedRequest(const std::string& endpoint, const std::string& method,
                                            const std::string& params, JsonValue& response) {
     if (access_key_.empty() || secret_key_.empty()) {
-        LOG_ERROR("Authentication credentials not provided");
+        LOG_ERROR("Authentication credentials not provided for endpoint: {}", endpoint);
         return false;
     }
+    
+#ifndef HAVE_JWT_CPP
+    LOG_ERROR("JWT library not available - cannot make authenticated requests to: {}", endpoint);
+    return false;
+#endif
     
     // Retry with rate limiting (max 3 attempts)
     for (int retry = 0; retry < 3; ++retry) {

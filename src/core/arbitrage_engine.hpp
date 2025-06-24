@@ -69,6 +69,9 @@ private:
     void UpdateStatistics(const ArbitrageOpportunity& opportunity, bool executed);
     void PerformHealthChecks();
     
+    // Exchange creation
+    std::unique_ptr<ExchangeInterface> CreateExchange(const ConfigManager::ExchangeConfig& config);
+    
     // Component integration
     void SetupComponentCallbacks();
     void OnOpportunityDetected(const ArbitrageOpportunity& opportunity);
