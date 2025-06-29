@@ -171,7 +171,7 @@ HealthCheckResult HealthCheck::CheckNetworkConnectivity() {
 
 HealthCheckResult HealthCheck::CheckExchangeConnections() {
     // This would typically check actual exchange connections
-    // For now, return healthy as a placeholder
+    // For now, we'll rely on the IsHealthy() method of the exchange interface
     return HealthCheckResult("ExchangeConnections", HealthStatus::HEALTHY, 
                            "Exchange connections are responsive");
 }

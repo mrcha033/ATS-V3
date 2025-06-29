@@ -1,4 +1,5 @@
 #include "rest_client.hpp"
+#include "network_exception.hpp"
 #include "../utils/logger.hpp"
 #include <chrono>
 #include <thread>
@@ -272,8 +273,13 @@ HttpResponse RestClient::Request(const HttpRequest& request) {
         // Check for errors
         if (result != CURLE_OK) {
             failed_requests_.fetch_add(1);
-            response.error_message = curl_easy_strerror(result);
-            LOG_ERROR("CURL request failed: {} ({})", curl_easy_strerror(result), result);
+            std::string error_message = curl_easy_strerror(result);
+            LOG_ERROR("CURL request failed: {} ({})", error_message, result);
+            if (result == CURLE_OPERATION_TIMEDOUT) {
+                throw TimeoutException("Request timed out: " + error_message);
+            } else {
+                throw ConnectionException("Request failed: " + error_message);
+            }
         } else {
             successful_requests_.fetch_add(1);
             if (response_code >= 400) {

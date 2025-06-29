@@ -2,8 +2,7 @@
 
 // Prevent Windows header pollution
 #if defined(_WIN32)
-    #define WIN32_LEAN_AND_MEAN
-    #define NOMINMAX
+    
     // Undefine conflicting Windows macros before our declarations
     #ifdef SendMessage
         #undef SendMessage

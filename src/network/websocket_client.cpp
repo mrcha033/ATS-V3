@@ -1,11 +1,3 @@
-// Prevent Windows macro pollution BEFORE any other headers
-#if defined(_WIN32) && !defined(WIN32_LEAN_AND_MEAN)
-    #define WIN32_LEAN_AND_MEAN
-#endif
-#if defined(_WIN32) && !defined(NOMINMAX)
-    #define NOMINMAX
-#endif
-
 #include "websocket_client.hpp"
 #include "../utils/logger.hpp"
 #include <iostream>
@@ -17,6 +9,12 @@
 
 #ifdef HAVE_CURL
 #include <curl/curl.h>
+#endif
+
+#ifdef HAVE_OPENSSL
+#include <openssl/sha.h>
+#include <openssl/bio.h>
+#include <openssl/evp.h>
 #endif
 
 // Undefine problematic Windows macros after all includes
@@ -328,20 +326,172 @@ void WebSocketClient::OnMessage(const std::string& message) {
 }
 
 bool WebSocketClient::PerformHandshake() {
+#ifdef HAVE_CURL
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        LOG_ERROR("Failed to initialize CURL for WebSocket handshake");
+        return false;
+    }
+
+    std::string key = GenerateKey();
+    std::string accept_key = ComputeAcceptKey(key);
+
+    struct curl_slist* headers = NULL;
+    headers = curl_slist_append(headers, "Connection: Upgrade");
+    headers = curl_slist_append(headers, "Upgrade: websocket");
+    headers = curl_slist_append(headers, "Sec-WebSocket-Version: 13");
+    headers = curl_slist_append(headers, ("Sec-WebSocket-Key: " + key).c_str());
+    headers = curl_slist_append(headers, ("User-Agent: " + user_agent_).c_str());
+
+    std::string response_header;
+    curl_easy_setopt(curl, CURLOPT_URL, url_.c_str());
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &response_header);
+    curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, default_timeout_ms_);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, verify_ssl_ ? 1L : 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, verify_ssl_ ? 2L : 0L);
+
+    CURLcode res = curl_easy_perform(curl);
+    curl_slist_free_all(headers);
+
+    if (res != CURLE_OK) {
+        LOG_ERROR("WebSocket handshake failed: {}", curl_easy_strerror(res));
+        curl_easy_cleanup(curl);
+        return false;
+    }
+
+    long response_code;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+    curl_easy_cleanup(curl);
+
+    if (response_code != 101) {
+        LOG_ERROR("WebSocket handshake failed with HTTP status code: {}", response_code);
+        return false;
+    }
+
+    // TODO: Validate the Sec-WebSocket-Accept header in the response
+    
+    return true;
+#else
+    LOG_ERROR("CURL not available, cannot perform WebSocket handshake.");
+    // TODO: Implement the actual WebSocket handshake protocol
     // Simplified handshake - real implementation would use HTTP upgrade
     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Simulate connection time
     return true; // Assume success for now
+#endif
 }
 
 bool WebSocketClient::SendFrame(const std::string& payload, bool is_text) {
-    // Simplified frame sending - real implementation would use WebSocket frame format
-    LOG_DEBUG("Sending WebSocket frame: {} bytes", payload.length());
-    return true; // Assume success for now
+#ifdef HAVE_CURL
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        LOG_ERROR("Failed to initialize CURL for WebSocket send");
+        return false;
+    }
+
+    std::vector<unsigned char> frame;
+    frame.push_back(0x81); // FIN + Text Frame
+
+    if (payload.size() <= 125) {
+        frame.push_back(payload.size() | 0x80); // Mask bit + payload length
+    } else if (payload.size() <= 65535) {
+        frame.push_back(126 | 0x80);
+        frame.push_back((payload.size() >> 8) & 0xFF);
+        frame.push_back(payload.size() & 0xFF);
+    } else {
+        frame.push_back(127 | 0x80);
+        for (int i = 7; i >= 0; --i) {
+            frame.push_back((payload.size() >> (i * 8)) & 0xFF);
+        }
+    }
+
+    // Masking key
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, 255);
+    std::vector<unsigned char> mask(4);
+    for (int i = 0; i < 4; ++i) {
+        mask[i] = dis(gen);
+        frame.push_back(mask[i]);
+    }
+
+    // Masked payload
+    for (size_t i = 0; i < payload.size(); ++i) {
+        frame.push_back(payload[i] ^ mask[i % 4]);
+    }
+
+    size_t sent = 0;
+    CURLcode res = curl_easy_send(curl, frame.data(), frame.size(), &sent);
+    curl_easy_cleanup(curl);
+
+    if (res != CURLE_OK) {
+        LOG_ERROR("Failed to send WebSocket frame: {}", curl_easy_strerror(res));
+        return false;
+    }
+
+    return true;
+#else
+    LOG_ERROR("CURL not available, cannot send WebSocket frame.");
+    return false;
+#endif
 }
 
 bool WebSocketClient::ReceiveFrame(std::string& payload) {
-    // Simplified frame receiving - real implementation would parse WebSocket frames
-    return false; // Not implemented yet
+#ifdef HAVE_CURL
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        LOG_ERROR("Failed to initialize CURL for WebSocket receive");
+        return false;
+    }
+
+    unsigned char header[2];
+    size_t received = 0;
+    CURLcode res = curl_easy_recv(curl, header, 2, &received);
+    if (res != CURLE_OK || received != 2) {
+        // Handle error or connection closed
+        curl_easy_cleanup(curl);
+        return false;
+    }
+
+    bool fin = (header[0] & 0x80) != 0;
+    unsigned char opcode = header[0] & 0x0F;
+    bool masked = (header[1] & 0x80) != 0;
+    unsigned long long payload_len = header[1] & 0x7F;
+
+    if (payload_len == 126) {
+        unsigned char ext_len[2];
+        curl_easy_recv(curl, ext_len, 2, &received);
+        payload_len = (ext_len[0] << 8) | ext_len[1];
+    } else if (payload_len == 127) {
+        unsigned char ext_len[8];
+        curl_easy_recv(curl, ext_len, 8, &received);
+        payload_len = 0;
+        for (int i = 0; i < 8; ++i) {
+            payload_len = (payload_len << 8) | ext_len[i];
+        }
+    }
+
+    std::vector<unsigned char> mask(4);
+    if (masked) {
+        curl_easy_recv(curl, mask.data(), 4, &received);
+    }
+
+    payload.resize(payload_len);
+    curl_easy_recv(curl, &payload[0], payload_len, &received);
+
+    if (masked) {
+        for (size_t i = 0; i < payload.size(); ++i) {
+            payload[i] ^= mask[i % 4];
+        }
+    }
+
+    curl_easy_cleanup(curl);
+    return true;
+#else
+    LOG_ERROR("CURL not available, cannot receive WebSocket frame.");
+    return false;
+#endif
 }
 
 std::string WebSocketClient::GenerateKey() {
@@ -350,17 +500,60 @@ std::string WebSocketClient::GenerateKey() {
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> dis(0, 255);
     
+    std::vector<unsigned char> key_bytes(16);
+    for (int i = 0; i < 16; ++i) {
+        key_bytes[i] = dis(gen);
+    }
+
+#ifdef HAVE_OPENSSL
+    BIO *b64 = BIO_new(BIO_f_base64());
+    BIO *bio = BIO_new(BIO_s_mem());
+    BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+    BIO_push(b64, bio);
+    BIO_write(b64, key_bytes.data(), 16);
+    BIO_flush(b64);
+
+    BUF_MEM *bptr;
+    BIO_get_mem_ptr(b64, &bptr);
+    std::string encoded_key(bptr->data, bptr->length);
+    BIO_free_all(b64);
+
+    return encoded_key;
+#else
+    // Fallback to a less secure method if OpenSSL is not available
     std::ostringstream oss;
     for (int i = 0; i < 16; ++i) {
         oss << std::hex << std::setw(2) << std::setfill('0') << dis(gen);
     }
-    
     return oss.str();
+#endif
 }
 
 std::string WebSocketClient::ComputeAcceptKey(const std::string& key) {
+    const std::string magic_string = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+    std::string combined = key + magic_string;
+
+#ifdef HAVE_OPENSSL
+    unsigned char hash[SHA_DIGEST_LENGTH];
+    SHA1(reinterpret_cast<const unsigned char*>(combined.c_str()), combined.length(), hash);
+
+    BIO *b64 = BIO_new(BIO_f_base64());
+    BIO *bio = BIO_new(BIO_s_mem());
+    BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+    BIO_push(b64, bio);
+    BIO_write(b64, hash, SHA_DIGEST_LENGTH);
+    BIO_flush(b64);
+
+    BUF_MEM *bptr;
+    BIO_get_mem_ptr(b64, &bptr);
+    std::string accept_key(bptr->data, bptr->length);
+    BIO_free_all(b64);
+
+    return accept_key;
+#else
     // Simplified accept key computation - real implementation would use SHA-1 + base64
     return key + "_accepted";
+#endif
 }
 
 bool WebSocketClient::ValidateHttpResponse(const std::string& response) {

@@ -138,8 +138,9 @@ public:
     bool GetLatestTicker(const std::string& exchange, const std::string& symbol, Ticker& ticker) const;
     
     // Cross-exchange analysis
-    PriceComparison ComparePrices(const std::string& symbol, 
-                                 const std::vector<std::string>& exchanges) const;
+    void ComparePrices(const std::string& symbol, 
+                                 const std::vector<std::string>& exchanges,
+                                 PriceComparison& comparison) const;
     
     std::vector<MarketDepth> GetMarketDepth(const std::string& symbol,
                                            const std::vector<std::string>& exchanges) const;

@@ -1,160 +1,121 @@
 #include <iostream>
 #include <memory>
-#include <signal.h>
+#include <vector>
+#include <csignal>
 #include <thread>
 #include <chrono>
-#include <atomic>
 
-#include "utils/logger.hpp"
 #include "utils/config_manager.hpp"
+#include "utils/logger.hpp"
+#include "core/app_state.hpp"
+#include "core/price_monitor.hpp"
+#include "core/opportunity_detector.hpp"
 #include "core/arbitrage_engine.hpp"
-#include "monitoring/system_monitor.hpp"
+#include "core/portfolio_manager.hpp"
+#include "core/risk_manager.hpp"
+#include "core/trade_executor.hpp"
+#include "data/database_manager.hpp"
+#include "exchange/exchange_factory.hpp"
 #include "monitoring/health_check.hpp"
+#include "monitoring/system_monitor.hpp"
 
-// Global atomic flag for shutdown - moved outside namespace for proper linkage
-std::atomic<bool> g_shutdown_requested{false};
+// Global application state
+ats::AppState app_state;
 
 // Signal handler for graceful shutdown
-void SignalHandler(int signal) {
-    // Only use async-signal-safe operations in signal handler
-    g_shutdown_requested.store(true);
+void signal_handler(int signal) {
+    if (signal == SIGINT || signal == SIGTERM) {
+        ats::Logger::info("Shutdown signal received. Initiating graceful shutdown...");
+        app_state.shutdown();
+    }
 }
 
-namespace ats {
-
-class Application {
-private:
-    std::unique_ptr<ConfigManager> config_manager_;
-    std::unique_ptr<ArbitrageEngine> arbitrage_engine_;
-    std::unique_ptr<SystemMonitor> system_monitor_;
-    std::unique_ptr<HealthCheck> health_check_;
-    
-    std::atomic<bool> running_{true};
-    
-public:
-    bool Initialize() {
-        try {
-            // Initialize logger first
-            Logger::Initialize();
-            LOG_INFO("ATS V3 Starting...");
-            
-            // Load configuration
-            config_manager_ = std::make_unique<ConfigManager>();
-            if (!config_manager_->LoadConfig("config/settings.json")) {
-                LOG_ERROR("Failed to load configuration");
-                return false;
-            }
-            
-            // Initialize system monitor
-            system_monitor_ = std::make_unique<SystemMonitor>();
-            system_monitor_->Start();
-            
-            // Initialize health check
-            health_check_ = std::make_unique<HealthCheck>();
-            if (!health_check_->Initialize()) {
-                LOG_ERROR("Failed to initialize health check");
-                return false;
-            }
-            health_check_->Start();
-            
-            // Initialize arbitrage engine
-            arbitrage_engine_ = std::make_unique<ArbitrageEngine>(config_manager_.get());
-            if (!arbitrage_engine_->Initialize()) {
-                LOG_ERROR("Failed to initialize arbitrage engine");
-                return false;
-            }
-            
-            LOG_INFO("ATS V3 Initialized successfully");
-            return true;
-            
-        } catch (const std::exception& e) {
-            LOG_ERROR("Initialization failed: {}", e.what());
-            return false;
-        }
-    }
-    
-    void Run() {
-        LOG_INFO("ATS V3 Starting main loop");
-        
-        // Start arbitrage engine
-        arbitrage_engine_->Start();
-        
-        // Main application loop
-        while (running_ && !g_shutdown_requested.load()) {
-            try {
-                // Health check
-                if (!health_check_->CheckSystem()) {
-                    LOG_WARNING("System health check failed");
-                }
-                
-                // Check system resources
-                auto metrics = system_monitor_->GetCurrentMetrics();
-                LOG_INFO("System Status - CPU: {:.1f}%, Memory: {:.1f}%, Disk: {:.1f}%", 
-                        metrics.cpu_usage_percent, metrics.memory_usage_percent, metrics.disk_usage_percent);
-                
-                // Sleep for 1 second
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-                
-            } catch (const std::exception& e) {
-                LOG_ERROR("Error in main loop: {}", e.what());
-                std::this_thread::sleep_for(std::chrono::seconds(5));
-            }
-        }
-        
-        // Handle shutdown signal
-        if (g_shutdown_requested.load()) {
-            LOG_INFO("Shutdown signal received, shutting down gracefully...");
-            Shutdown();
-        }
-        
-        LOG_INFO("ATS V3 Shutting down...");
-    }
-    
-    void Shutdown() {
-        running_.store(false);
-        
-        if (arbitrage_engine_) {
-            arbitrage_engine_->Stop();
-        }
-        
-        if (system_monitor_) {
-            system_monitor_->Stop();
-        }
-        
-        if (health_check_) {
-            health_check_->Stop();
-        }
-        
-        LOG_INFO("ATS V3 Shutdown complete");
-    }
-};
-
-// Global application instance
-std::unique_ptr<Application> g_app;
-
-} // namespace ats
-
 int main(int argc, char* argv[]) {
-    try {
-        // Install signal handlers
-        signal(SIGINT, SignalHandler);
-        signal(SIGTERM, SignalHandler);
-        
-        // Create and initialize application
-        ats::g_app = std::make_unique<ats::Application>();
-        
-        if (!ats::g_app->Initialize()) {
-            std::cerr << "Failed to initialize ATS V3" << std::endl;
-            return 1;
-        }
-        
-        // Run application
-        ats::g_app->Run();
-        
-        return 0;
-        
-    } catch (const std::exception& e) {
-        std::cerr << "Fatal error: " << e.what() << std::endl;
+    // Register signal handlers
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
+
+    // Initialize logger
+    ats::Logger::init("ats_v3.log");
+    ats::Logger::info("Starting ATS-V3...");
+
+    // Load configuration
+    ats::ConfigManager config_manager;
+    if (!config_manager.load("config/settings.json")) {
+        ats::Logger::error("Failed to load configuration. Exiting.");
         return 1;
     }
-} 
+
+    // Initialize application components
+    auto db_manager = std::make_unique<ats::DatabaseManager>(config_manager.get_db_path());
+    if (!db_manager->Open()) {
+        ats::Logger::error("Failed to open database. Exiting.");
+        return 1;
+    }
+
+    auto portfolio_manager = std::make_unique<ats::PortfolioManager>(&config_manager);
+    auto risk_manager = std::make_unique<ats::RiskManager>(&config_manager, db_manager.get());
+    auto trade_executor = std::make_unique<ats::TradeExecutor>(&config_manager, portfolio_manager.get(), risk_manager.get());
+
+    // Initialize exchanges
+    auto exchanges = ats::ExchangeFactory::create_exchanges(config_manager.get_exchanges_config(), &app_state);
+    if (exchanges.empty()) {
+        ats::Logger::error("No exchanges initialized. Exiting.");
+        return 1;
+    }
+
+    // Initialize core components
+    auto price_monitor = std::make_unique<ats::PriceMonitor>(exchanges);
+    auto opportunity_detector = std::make_unique<ats::OpportunityDetector>(config_manager.get_symbols());
+    auto arbitrage_engine = std::make_unique<ats::ArbitrageEngine>(risk_manager.get(), trade_executor.get());
+
+    // Initialize monitoring components
+    auto health_check = std::make_unique<ats::HealthCheck>();
+    auto system_monitor = std::make_unique<ats::SystemMonitor>();
+
+    // Set up dependencies
+    price_monitor->set_update_callback([&](const ats::PriceComparison& comp) {
+        opportunity_detector->update_prices(comp);
+    });
+
+    opportunity_detector->set_opportunity_callback([&](const ats::ArbitrageOpportunity& opp) {
+        arbitrage_engine->evaluate_opportunity(opp);
+    });
+
+    // Start all components in separate threads
+    std::vector<std::thread> threads;
+    threads.emplace_back([&]() { price_monitor->start(); });
+    threads.emplace_back([&]() { opportunity_detector->start(); });
+    threads.emplace_back([&]() { arbitrage_engine->start(); });
+    threads.emplace_back([&]() { health_check->Start(); });
+    threads.emplace_back([&]() { system_monitor->Start(); });
+
+    ats::Logger::info("ATS-V3 is running.");
+
+    // Main loop to keep the application alive
+    while (app_state.is_running()) {
+        // Perform periodic tasks, e.g., logging status
+        if (app_state.is_running()) {
+            ats::Logger::info("ATS-V3 main loop is running...");
+            std::this_thread::sleep_for(std::chrono::seconds(60));
+        }
+    }
+
+    // Stop all components
+    ats::Logger::info("Stopping all components...");
+    price_monitor->stop();
+    opportunity_detector->stop();
+    arbitrage_engine->stop();
+    health_check->Stop();
+    system_monitor->Stop();
+
+    // Wait for all threads to complete
+    for (auto& t : threads) {
+        if (t.joinable()) {
+            t.join();
+        }
+    }
+
+    ats::Logger::info("ATS-V3 has shut down gracefully.");
+    return 0;
+}

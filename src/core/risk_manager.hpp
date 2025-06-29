@@ -7,11 +7,13 @@
 #include <chrono>
 #include <memory>
 
-#include "opportunity_detector.hpp"
+#include "types.hpp"
 
 namespace ats {
 
 class ConfigManager;
+class DatabaseManager;
+struct Notification;
 
 // Risk limits and thresholds
 struct RiskLimits {
@@ -80,46 +82,10 @@ struct RiskAssessment {
 };
 
 class RiskManager {
-private:
-    ConfigManager* config_manager_;
-    RiskLimits limits_;
-    
-    // Trade tracking
-    std::vector<TradeRecord> trade_history_;
-    mutable std::mutex trades_mutex_;
-    size_t max_trade_history_;
-    
-    // Current positions and exposure
-    std::unordered_map<std::string, double> current_positions_;    // symbol -> position size
-    std::unordered_map<std::string, double> exchange_exposures_;   // exchange -> total exposure
-    mutable std::mutex positions_mutex_;
-    
-    // P&L tracking
-    std::atomic<double> daily_pnl_;
-    std::atomic<double> weekly_pnl_;
-    std::atomic<double> monthly_pnl_;
-    std::atomic<double> total_pnl_;
-    
-    // Trade rate tracking
-    struct TradeRateTracker {
-        std::vector<std::chrono::system_clock::time_point> trade_times;
-        mutable std::mutex mutex;
-        size_t max_size = 1000;
-    };
-    TradeRateTracker rate_tracker_;
-    
-    // Risk state
-    std::atomic<bool> kill_switch_activated_;
-    std::atomic<bool> trading_halted_;
-    std::chrono::system_clock::time_point last_reset_time_;
-    
-    // Statistics
-    std::atomic<long long> trades_approved_;
-    std::atomic<long long> trades_rejected_;
-    std::atomic<long long> risk_violations_;
-
 public:
-    explicit RiskManager(ConfigManager* config_manager);
+    using NotificationCallback = std::function<void(const Notification&)>;
+
+    explicit RiskManager(ConfigManager* config_manager, DatabaseManager* db_manager);
     ~RiskManager() = default;
     
     // Lifecycle
@@ -129,17 +95,17 @@ public:
     // Configuration
     void SetLimits(const RiskLimits& limits) { limits_ = limits; }
     RiskLimits GetLimits() const { return limits_; }
+    void SetNotificationCallback(NotificationCallback callback) { notification_callback_ = callback; }
     
     // Core risk assessment
     RiskAssessment AssessOpportunity(const ArbitrageOpportunity& opportunity);
-    bool IsTradeAllowed(const ArbitrageOpportunity& opportunity);
+    virtual bool IsTradeAllowed(const ArbitrageOpportunity& opportunity);
     double CalculateMaxPositionSize(const ArbitrageOpportunity& opportunity);
     
     // Position management
     void RecordTradeStart(const std::string& trade_id, const ArbitrageOpportunity& opportunity, double volume);
     void RecordTradeComplete(const std::string& trade_id, double realized_pnl, double fees);
     void RecordTradeFailed(const std::string& trade_id, const std::string& reason);
-    
     void UpdatePosition(const std::string& symbol, double size_change);
     double GetCurrentPosition(const std::string& symbol) const;
     double GetTotalExposure() const;
@@ -156,7 +122,6 @@ public:
     void ActivateKillSwitch(const std::string& reason);
     void DeactivateKillSwitch();
     bool IsKillSwitchActive() const { return kill_switch_activated_.load(); }
-    
     void HaltTrading(const std::string& reason);
     void ResumeTrading();
     bool IsTradingHalted() const { return trading_halted_.load(); }
@@ -210,6 +175,45 @@ public:
     void NotifyExternalSystems(const std::string& reason);
 
 private:
+    ConfigManager* config_manager_;
+    RiskLimits limits_;
+    NotificationCallback notification_callback_;
+    DatabaseManager* db_manager_;
+    
+    // Trade tracking
+    std::vector<TradeRecord> trade_history_;
+    mutable std::mutex trades_mutex_;
+    size_t max_trade_history_;
+    
+    // Current positions and exposure
+    std::unordered_map<std::string, double> current_positions_;    // symbol -> position size
+    std::unordered_map<std::string, double> exchange_exposures_;   // exchange -> total exposure
+    mutable std::mutex positions_mutex_;
+    
+    // P&L tracking
+    std::atomic<double> daily_pnl_;
+    std::atomic<double> weekly_pnl_;
+    std::atomic<double> monthly_pnl_;
+    std::atomic<double> total_pnl_;
+    
+    // Trade rate tracking
+    struct TradeRateTracker {
+        std::vector<std::chrono::system_clock::time_point> trade_times;
+        mutable std::mutex mutex;
+        size_t max_size = 1000;
+    };
+    TradeRateTracker rate_tracker_;
+    
+    // Risk state
+    std::atomic<bool> kill_switch_activated_;
+    std::atomic<bool> trading_halted_;
+    std::chrono::system_clock::time_point last_reset_time_;
+    
+    // Statistics
+    std::atomic<long long> trades_approved_;
+    std::atomic<long long> trades_rejected_;
+    std::atomic<long long> risk_violations_;
+
     // Risk calculation methods
     double CalculatePositionRisk(const ArbitrageOpportunity& opportunity, double volume) const;
     double CalculateMarketRisk(const ArbitrageOpportunity& opportunity) const;

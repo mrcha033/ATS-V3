@@ -1,0 +1,10 @@
+^C:\PROJECTS\ATS-V3\CMAKEFILES\6CD0F0E695C841CB3C78F71D47F54D3E\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Projects/ATS-V3 -BC:/Projects/ATS-V3 --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Projects/ATS-V3/ATS-V3.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

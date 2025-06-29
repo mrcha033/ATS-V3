@@ -77,14 +77,6 @@
     "discord": {
       "enabled": false,
       "webhook_url": "YOUR_DISCORD_WEBHOOK_URL"
-    },
-    "email": {
-      "enabled": false,
-      "smtp_server": "smtp.gmail.com",
-      "smtp_port": 587,
-      "username": "your.email@gmail.com",
-      "password": "your_app_password",
-      "recipient": "alerts@yourdomain.com"
     }
   },
   "database": {

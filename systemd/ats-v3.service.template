@@ -1,0 +1,46 @@
+[Unit]
+Description=ATS V3 Arbitrage Trading System
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=ats
+Group=ats
+ExecStart=@INSTALL_DIR@/bin/ATS-V3
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+# Working directory
+WorkingDirectory=@INSTALL_DIR@
+
+# Environment variables
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=LD_LIBRARY_PATH=/usr/local/lib
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=@INSTALL_DIR@/logs @INSTALL_DIR@/data @INSTALL_DIR@/config
+
+# Resource limits (important for Raspberry Pi)
+LimitNOFILE=65536
+MemoryMax=1G
+CPUQuota=80%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ats-v3
+
+# Watchdog (restart if service becomes unresponsive)
+WatchdogSec=30
+
+[Install]
+WantedBy=multi-user.target 

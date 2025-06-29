@@ -107,11 +107,11 @@ bool MarketDataFeed::GetLatestTicker(const std::string& exchange, const std::str
     return false;
 }
 
-PriceComparison MarketDataFeed::ComparePrices(const std::string& symbol, 
-                                             const std::vector<std::string>& exchanges) const {
+void MarketDataFeed::ComparePrices(const std::string& symbol, 
+                                             const std::vector<std::string>& exchanges,
+                                             PriceComparison& comparison) const {
     shared_lock_type lock(data_mutex_);
     
-    PriceComparison comparison;
     comparison.symbol = symbol;
     comparison.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
@@ -141,8 +141,6 @@ PriceComparison MarketDataFeed::ComparePrices(const std::string& symbol,
     if (highest_bid > 0.0 && lowest_ask < std::numeric_limits<double>::max()) {
         comparison.max_spread_percent = ((highest_bid - lowest_ask) / lowest_ask) * 100.0;
     }
-    
-    return comparison;
 }
 
 std::vector<MarketDepth> MarketDataFeed::GetMarketDepth(const std::string& symbol,

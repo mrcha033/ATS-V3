@@ -1,6 +1,7 @@
 #include "risk_manager.hpp"
 #include "../utils/config_manager.hpp"
 #include "../utils/logger.hpp"
+#include "../data/database_manager.hpp"
 #include <algorithm>
 #include <iomanip>
 #include <sstream>
@@ -9,8 +10,8 @@
 
 namespace ats {
 
-RiskManager::RiskManager(ConfigManager* config_manager)
-    : config_manager_(config_manager), max_trade_history_(1000),
+RiskManager::RiskManager(ConfigManager* config_manager, DatabaseManager* db_manager)
+    : config_manager_(config_manager), db_manager_(db_manager), max_trade_history_(1000),
       daily_pnl_(0.0), weekly_pnl_(0.0), monthly_pnl_(0.0), total_pnl_(0.0),
       kill_switch_activated_(false), trading_halted_(false),
       trades_approved_(0), trades_rejected_(0), risk_violations_(0) {
@@ -35,6 +36,11 @@ bool RiskManager::Initialize() {
         limits_.stop_loss_threshold = 2.0;
         limits_.kill_switch_loss_threshold = 5000.0;
         
+        if (!db_manager_) {
+            LOG_ERROR("Database manager is not initialized");
+            return false;
+        }
+
         LOG_INFO("Risk Manager initialized with max position size: {:.0f}", 
                 limits_.max_position_size_usd);
         return true;
@@ -75,7 +81,7 @@ RiskAssessment RiskManager::AssessOpportunity(const ArbitrageOpportunity& opport
         }
         
         // Check basic opportunity validity
-        if (!opportunity.IsExecutable()) {
+        if (opportunity.is_executable) {
             assessment.rejections.push_back("Opportunity is not executable");
             return assessment;
         }
@@ -184,6 +190,7 @@ void RiskManager::RecordTradeComplete(const std::string& trade_id, double realiz
             trade.end_time = std::chrono::system_clock::now();
             trade.is_completed = true;
             trade.is_profitable = (realized_pnl > 0);
+            db_manager_->SaveTrade(trade);
             break;
         }
     }
@@ -282,51 +289,17 @@ void RiskManager::ActivateKillSwitch(const std::string& reason) {
 }
 
 void RiskManager::NotifyExternalSystems(const std::string& reason) {
-    try {
-        // 1. 이메일 알림 (시뮬레이션)
-        LOG_WARNING("EMAIL ALERT: Kill switch activated - {}", reason);
-        
-        // 2. SMS 알림 (시뮬레이션)
-        LOG_WARNING("SMS ALERT: ATS-V3 EMERGENCY - Kill switch: {}", reason);
-        
-        // 3. Slack/Discord Webhook (시뮬레이션)
-        std::string webhook_message = "🚨 **ATS-V3 EMERGENCY ALERT** 🚨\n"
-                                    "Kill Switch Activated: " + reason + "\n"
-                                    "All trading operations have been halted.\n"
-                                    "Immediate attention required!";
-        LOG_WARNING("WEBHOOK ALERT: {}", webhook_message);
-        
-        // 4. 시스템 로그 기록
-        LOG_CRITICAL("EXTERNAL_NOTIFICATION: Kill switch notification sent - {}", reason);
-        
-        // 5. 설정 파일에 긴급 상태 기록
-        if (config_manager_) {
-            try {
-                // 긴급 상태를 설정에 기록 (재시작 후에도 유지)
-                auto emergency_file = std::ofstream("emergency_state.flag");
-                if (emergency_file.is_open()) {
-                    emergency_file << "KILL_SWITCH_ACTIVE\n";
-                    emergency_file << "REASON: " << reason << "\n";
-                    emergency_file << "TIMESTAMP: " << std::time(nullptr) << "\n";
-                    emergency_file.close();
-                    LOG_INFO("Emergency state flag created");
-                }
-            } catch (const std::exception& e) {
-                LOG_ERROR("Failed to create emergency state flag: {}", e.what());
-            }
-        }
-        
-        // 6. 외부 모니터링 시스템 알림 (HTTP POST 시뮬레이션)
-        std::string monitoring_alert = "{"
-            "\"service\": \"ATS-V3\","
-            "\"level\": \"CRITICAL\","
-            "\"message\": \"" + reason + "\","
-            "\"timestamp\": \"" + std::to_string(std::time(nullptr)) + "\""
-            "}";
-        LOG_WARNING("MONITORING_SYSTEM_ALERT: {}", monitoring_alert);
-        
-    } catch (const std::exception& e) {
-        LOG_ERROR("Error sending external notifications: {}", e.what());
+    Notification notification;
+    notification.level = Notification::Level::CRITICAL;
+    notification.title = "Kill Switch Activated";
+    notification.message = reason;
+    notification.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+
+    if (notification_callback_) {
+        notification_callback_(notification);
+    } else {
+        LOG_CRITICAL("NOTIFICATION: [{} - {}] {}", "CRITICAL", notification.title, notification.message);
     }
 }
 
