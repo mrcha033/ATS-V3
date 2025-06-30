@@ -2,29 +2,27 @@
 
 #include <vector>
 #include <string>
-#include <functional>
 #include <memory>
 #include "types.hpp"
-#include "price_monitor.hpp"
+#include "event_pusher.hpp"
+#include "../utils/config_manager.hpp"
 
 namespace ats {
 
 class OpportunityDetector {
 public:
-    using OpportunityCallback = std::function<void(const ArbitrageOpportunity&)>;
-
-    OpportunityDetector(const std::vector<std::string>& symbols);
+    OpportunityDetector(ConfigManager* config_manager, const std::vector<std::string>& symbols);
 
     void start();
     void stop();
 
-    void set_opportunity_callback(OpportunityCallback callback);
+    void set_event_pusher(EventPusher* event_pusher);
     void update_prices(const PriceComparison& comparison);
 
 private:
+    ConfigManager* config_manager_;
     std::vector<std::string> symbols_;
-    OpportunityCallback opportunity_callback_;
-    std::unique_ptr<PriceMonitor> price_monitor_;
+    EventPusher* event_pusher_;
 };
 
 } 

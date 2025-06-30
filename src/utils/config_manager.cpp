@@ -2,6 +2,7 @@
 #include <fstream>
 #include <cstdlib>
 #include <algorithm>
+#include "logger.hpp"
 
 namespace ats {
 
@@ -19,7 +20,11 @@ std::string ConfigManager::get_db_path() const {
 }
 
 std::vector<std::string> ConfigManager::get_symbols() const {
-    return config_data_.value("symbols", std::vector<std::string>{"BTC/USDT"});
+    if (config_data_.contains("trading") && config_data_["trading"].contains("pairs")) {
+        return config_data_["trading"]["pairs"].get<std::vector<std::string>>();
+    }
+    Logger::warn("Trading pairs not found in config. Defaulting to empty list.");
+    return {};
 }
 
 std::string get_env_var(const std::string& key) {
@@ -44,6 +49,16 @@ nlohmann::json ConfigManager::get_exchanges_config() const {
         }
     }
     return exchanges;
+}
+
+ExchangeFees ConfigManager::get_exchange_fees(const std::string& exchange_name) const {
+    ExchangeFees fees{0.0, 0.0};
+    if (config_data_.contains("exchanges") && config_data_["exchanges"].contains(exchange_name)) {
+        const auto& exchange_config = config_data_["exchanges"][exchange_name];
+        fees.maker_fee = exchange_config.value("maker_fee", 0.0);
+        fees.taker_fee = exchange_config.value("taker_fee", 0.0);
+    }
+    return fees;
 }
 
 } 

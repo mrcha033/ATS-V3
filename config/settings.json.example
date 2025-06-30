@@ -21,8 +21,8 @@
     "upbit": {
       "name": "upbit",
       "enabled": true,
-      "api_key": "YOUR_UPBIT_ACCESS_KEY",
-      "secret_key": "YOUR_UPBIT_SECRET_KEY",
+      "api_key": "YOUR_UPBIT_API_KEY",
+      "api_secret": "YOUR_UPBIT_API_SECRET",
       "base_url": "https://api.upbit.com",
       "ws_url": "wss://api.upbit.com/websocket/v1",
       "rate_limit_per_second": 10,

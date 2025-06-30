@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <memory>
 #include "types.hpp"
 #include "portfolio_manager.hpp"
 #include "risk_manager.hpp"
@@ -28,6 +29,8 @@ public:
     virtual void execute_trade(const ArbitrageOpportunity& opportunity);
 
 private:
+    std::shared_ptr<ExchangeInterface> get_exchange(const std::string& name);
+
     ConfigManager* config_manager_;
     PortfolioManager* portfolio_manager_;
     RiskManager* risk_manager_;
