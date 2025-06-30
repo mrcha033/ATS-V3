@@ -12,7 +12,7 @@ namespace ats {
 class ExchangeFactory {
 public:
     static std::vector<std::shared_ptr<ExchangeInterface>> create_exchanges(
-        const nlohmann::json& configs, AppState* app_state);
+        const std::map<std::string, ExchangeConfig>& configs, AppState* app_state);
 };
 
 }

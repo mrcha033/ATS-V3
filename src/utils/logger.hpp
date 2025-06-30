@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include <stdexcept>
+#include "config_types.hpp" // Include for LoggingConfig
 
 namespace ats {
 
@@ -19,17 +20,28 @@ std::string format_string( const std::string& format, Args ... args )
     return std::string( buf.get(), buf.get() + size - 1 ); // We don't want the '\0' inside
 }
 
+enum class LogLevel {
+    DEBUG,
+    INFO,
+    WARNING,
+    ERROR,
+    CRITICAL
+};
+
 class Logger {
 public:
-    static void init(const std::string& file_path);
+    static void init(const LoggingConfig& config, LogLevel app_log_level);
+    static void set_log_level(LogLevel level);
+    static void log(LogLevel level, const std::string& message);
     static void info(const std::string& message);
     static void error(const std::string& message);
 };
 
-#define LOG_INFO(...) ats::Logger::info(ats::format_string(__VA_ARGS__))
-#define LOG_ERROR(...) ats::Logger::error(ats::format_string(__VA_ARGS__))
-#define LOG_WARNING(...) ats::Logger::info("WARNING: " + ats::format_string(__VA_ARGS__))
-#define LOG_DEBUG(...) ats::Logger::info("DEBUG: " + ats::format_string(__VA_ARGS__))
-#define LOG_CRITICAL(...) ats::Logger::error("CRITICAL: " + ats::format_string(__VA_ARGS__))
+
+#define LOG_INFO(...) ats::Logger::log(ats::LogLevel::INFO, ats::format_string(__VA_ARGS__))
+#define LOG_ERROR(...) ats::Logger::log(ats::LogLevel::ERROR, ats::format_string(__VA_ARGS__))
+#define LOG_WARNING(...) ats::Logger::log(ats::LogLevel::WARNING, ats::format_string(__VA_ARGS__))
+#define LOG_DEBUG(...) ats::Logger::log(ats::LogLevel::DEBUG, ats::format_string(__VA_ARGS__))
+#define LOG_CRITICAL(...) ats::Logger::log(ats::LogLevel::CRITICAL, ats::format_string(__VA_ARGS__))
 
 } 

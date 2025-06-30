@@ -1,7 +1,6 @@
 #include "config_manager.hpp"
 #include <fstream>
-#include <cstdlib>
-#include <algorithm>
+#include <nlohmann/json.hpp>
 #include "logger.hpp"
 
 namespace ats {
@@ -9,56 +8,85 @@ namespace ats {
 bool ConfigManager::load(const std::string& file_path) {
     std::ifstream file(file_path);
     if (!file.is_open()) {
+        Logger::error("Failed to open config file: " + file_path);
         return false;
     }
-    file >> config_data_;
+    try {
+        file >> config_data_;
+
+        if (config_data_.contains("app")) {
+            config_data_["app"].get_to(app_config_);
+        }
+        if (config_data_.contains("exchanges")) {
+            for (auto& [name, config] : config_data_["exchanges"].items()) {
+                ExchangeConfig exchange_cfg = config.get<ExchangeConfig>();
+                exchange_cfg.name = name; // Manually set the name
+                exchange_configs_[name] = exchange_cfg;
+            }
+        }
+        if (config_data_.contains("trading")) {
+            config_data_["trading"].get_to(trading_config_);
+        }
+        if (config_data_.contains("arbitrage")) {
+            config_data_["arbitrage"].get_to(arbitrage_config_);
+        }
+        if (config_data_.contains("risk_management")) {
+            config_data_["risk_management"].get_to(risk_management_config_);
+        }
+        if (config_data_.contains("monitoring")) {
+            config_data_["monitoring"].get_to(monitoring_config_);
+        }
+        if (config_data_.contains("alerts")) {
+            config_data_["alerts"].get_to(alerts_config_);
+        }
+        if (config_data_.contains("database")) {
+            config_data_["database"].get_to(database_config_);
+        }
+        if (config_data_.contains("logging")) {
+            config_data_["logging"].get_to(logging_config_);
+        }
+
+    } catch (const nlohmann::json::exception& e) {
+        Logger::error("Error parsing config file: " + std::string(e.what()));
+        return false;
+    }
     return true;
 }
 
-std::string ConfigManager::get_db_path() const {
-    return config_data_.value("db_path", "trades.db");
+const AppConfig& ConfigManager::get_app_config() const {
+    return app_config_;
 }
 
-std::vector<std::string> ConfigManager::get_symbols() const {
-    if (config_data_.contains("trading") && config_data_["trading"].contains("pairs")) {
-        return config_data_["trading"]["pairs"].get<std::vector<std::string>>();
-    }
-    Logger::warn("Trading pairs not found in config. Defaulting to empty list.");
-    return {};
+const std::map<std::string, ExchangeConfig>& ConfigManager::get_exchange_configs() const {
+    return exchange_configs_;
 }
 
-std::string get_env_var(const std::string& key) {
-    char* val = getenv(key.c_str());
-    return val == NULL ? std::string("") : std::string(val);
+const TradingConfig& ConfigManager::get_trading_config() const {
+    return trading_config_;
 }
 
-nlohmann::json ConfigManager::get_exchanges_config() const {
-    auto exchanges = config_data_.value("exchanges", nlohmann::json::object());
-    for (auto& [name, config] : exchanges.items()) {
-        std::string upper_name = name;
-        std::transform(upper_name.begin(), upper_name.end(), upper_name.begin(), ::toupper);
-
-        std::string api_key_env = get_env_var(upper_name + "_API_KEY");
-        if (!api_key_env.empty()) {
-            config["api_key"] = api_key_env;
-        }
-
-        std::string secret_key_env = get_env_var(upper_name + "_SECRET_KEY");
-        if (!secret_key_env.empty()) {
-            config["secret_key"] = secret_key_env;
-        }
-    }
-    return exchanges;
+const ArbitrageConfig& ConfigManager::get_arbitrage_config() const {
+    return arbitrage_config_;
 }
 
-ExchangeFees ConfigManager::get_exchange_fees(const std::string& exchange_name) const {
-    ExchangeFees fees{0.0, 0.0};
-    if (config_data_.contains("exchanges") && config_data_["exchanges"].contains(exchange_name)) {
-        const auto& exchange_config = config_data_["exchanges"][exchange_name];
-        fees.maker_fee = exchange_config.value("maker_fee", 0.0);
-        fees.taker_fee = exchange_config.value("taker_fee", 0.0);
-    }
-    return fees;
+const RiskManagementConfig& ConfigManager::get_risk_management_config() const {
+    return risk_management_config_;
+}
+
+const MonitoringConfig& ConfigManager::get_monitoring_config() const {
+    return monitoring_config_;
+}
+
+const AlertsConfig& ConfigManager::get_alerts_config() const {
+    return alerts_config_;
+}
+
+const DatabaseConfig& ConfigManager::get_database_config() const {
+    return database_config_;
+}
+
+const LoggingConfig& ConfigManager::get_logging_config() const {
+    return logging_config_;
 }
 
 } 

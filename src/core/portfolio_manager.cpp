@@ -17,14 +17,19 @@ void PortfolioManager::AddExchange(std::shared_ptr<ExchangeInterface> exchange) 
     exchanges_.push_back(exchange);
 }
 
-void PortfolioManager::update_position(const std::string& symbol, double quantity, double price, OrderSide side) {
+void PortfolioManager::update_position(const OrderResult& order_result) {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (side == OrderSide::BUY) {
-        balances_["USD"] -= quantity * price;
-        balances_[symbol] += quantity;
+    if (order_result.side == OrderSide::BUY) {
+        balances_[order_result.symbol] += order_result.executed_quantity;
+        // Assuming quote currency is USDT for simplicity, adjust as needed
+        balances_["USDT"] -= order_result.cummulative_quote_quantity;
     } else {
-        balances_["USD"] += quantity * price;
-        balances_[symbol] -= quantity;
+        balances_[order_result.symbol] -= order_result.executed_quantity;
+        balances_["USDT"] += order_result.cummulative_quote_quantity;
+    }
+    // Deduct commission
+    if (!order_result.commission_asset.empty() && order_result.commission > 0) {
+        balances_[order_result.commission_asset] -= order_result.commission;
     }
 }
 

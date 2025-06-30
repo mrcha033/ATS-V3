@@ -15,6 +15,7 @@ public:
     virtual void connect() = 0;
     virtual void disconnect() = 0;
     virtual Price get_price(const std::string& symbol) = 0;
+    virtual OrderResult place_order(const Order& order) = 0;
 };
 
 }

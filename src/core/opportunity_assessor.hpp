@@ -1,6 +1,7 @@
 #pragma once
 
 #include "types.hpp"
+#include "risk_manager.hpp" // For RiskAssessment and RiskManager
 
 namespace ats {
 

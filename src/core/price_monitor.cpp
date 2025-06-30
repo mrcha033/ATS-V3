@@ -8,7 +8,7 @@ namespace ats {
 
 PriceMonitor::PriceMonitor(ConfigManager* config_manager, const std::vector<std::shared_ptr<ExchangeInterface>>& exchanges)
     : config_manager_(config_manager), exchanges_(exchanges), event_pusher_(nullptr), running_(false) {
-    symbols_ = config_manager_->get_symbols();
+    symbols_ = config_manager_->get_trading_config().pairs;
 }
 
 PriceMonitor::~PriceMonitor() {

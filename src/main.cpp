@@ -40,10 +40,6 @@ int main(int argc, char* argv[]) {
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
 
-    // Initialize logger
-    ats::Logger::init("ats_v3.log");
-    ats::Logger::info("Starting ATS-V3...");
-
     // Load configuration
     ats::ConfigManager config_manager;
     if (!config_manager.load("config/settings.json")) {
@@ -51,8 +47,23 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // Initialize logger
+    ats::LogLevel app_log_level = ats::LogLevel::INFO;
+    std::string log_level_str = config_manager.get_app_config().log_level;
+    if (log_level_str == "DEBUG") {
+        app_log_level = ats::LogLevel::DEBUG;
+    } else if (log_level_str == "WARNING") {
+        app_log_level = ats::LogLevel::WARNING;
+    } else if (log_level_str == "ERROR") {
+        app_log_level = ats::LogLevel::ERROR;
+    } else if (log_level_str == "CRITICAL") {
+        app_log_level = ats::LogLevel::CRITICAL;
+    }
+    ats::Logger::init(config_manager.get_logging_config(), app_log_level);
+    ats::Logger::info("Starting ATS-V3...");
+
     // Initialize application components
-    auto db_manager = std::make_unique<ats::DatabaseManager>(config_manager.get_db_path());
+    auto db_manager = std::make_unique<ats::DatabaseManager>(config_manager.get_database_config().path);
     if (!db_manager->Open()) {
         ats::Logger::error("Failed to open database. Exiting.");
         return 1;
@@ -61,20 +72,21 @@ int main(int argc, char* argv[]) {
     auto portfolio_manager = std::make_unique<ats::PortfolioManager>(&config_manager);
     auto risk_manager = std::make_unique<ats::RiskManager>(&config_manager, db_manager.get());
     auto trade_executor = std::make_unique<ats::TradeExecutor>(&config_manager, portfolio_manager.get(), risk_manager.get());
-    for (const auto& exchange : exchanges) {
-        trade_executor->AddExchange(exchange);
-    }
 
     // Initialize exchanges
-    auto exchanges = ats::ExchangeFactory::create_exchanges(config_manager.get_exchanges_config(), &app_state);
+    auto exchanges = ats::ExchangeFactory::create_exchanges(config_manager.get_exchange_configs(), &app_state);
     if (exchanges.empty()) {
         ats::Logger::error("No exchanges initialized. Exiting.");
         return 1;
     }
 
+    for (const auto& exchange : exchanges) {
+        trade_executor->AddExchange(exchange);
+    }
+
     // Initialize core components
     auto price_monitor = std::make_unique<ats::PriceMonitor>(&config_manager, exchanges);
-    auto opportunity_detector = std::make_unique<ats::OpportunityDetector>(&config_manager, config_manager.get_symbols());
+    auto opportunity_detector = std::make_unique<ats::OpportunityDetector>(&config_manager, config_manager.get_trading_config().pairs);
     auto arbitrage_engine = std::make_unique<ats::ArbitrageEngine>(risk_manager.get(), trade_executor.get());
 
     // Initialize monitoring components
@@ -94,16 +106,13 @@ int main(int argc, char* argv[]) {
     threads.emplace_back([&]() {
         while (app_state.is_running()) {
             price_monitor->check_prices();
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            std::this_thread::sleep_for(std::chrono::milliseconds(config_manager.get_arbitrage_config().price_update_interval_ms));
         }
     });
     threads.emplace_back([&]() { health_check->Start(); });
     threads.emplace_back([&]() { system_monitor->Start(); });
 
     ats::Logger::info("ATS-V3 is running.");
-
-    // Start the event loop
-    event_loop.run();
 
     // Start the event loop
     event_loop.run();

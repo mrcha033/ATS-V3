@@ -5,6 +5,7 @@ file(GLOB_RECURSE SOURCES
     "monitoring/*.cpp"
     "network/*.cpp"
     "utils/*.cpp"
+    "utils/config_types.cpp"
 )
 
 add_library(ats-v3-lib ${SOURCES} data/sqlite3.c)

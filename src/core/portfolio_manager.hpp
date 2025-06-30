@@ -19,7 +19,7 @@ public:
     bool IsHealthy() const;
     void AddExchange(std::shared_ptr<ExchangeInterface> exchange);
 
-    void update_position(const std::string& symbol, double quantity, double price, OrderSide side);
+    void update_position(const OrderResult& order_result);
     void update_balance(const std::string& asset, double amount);
     double get_balance(const std::string& asset) const;
 

@@ -4,7 +4,7 @@
 namespace ats {
 
 OpportunityDetector::OpportunityDetector(ConfigManager* config_manager, const std::vector<std::string>& symbols)
-    : config_manager_(config_manager), symbols_(symbols), event_pusher_(nullptr) {}
+    : config_manager_(config_manager), symbols_(config_manager->get_trading_config().pairs), event_pusher_(nullptr) {}
 
 void OpportunityDetector::start() {
     // Start the opportunity detector
@@ -38,11 +38,11 @@ void OpportunityDetector::update_prices(const PriceComparison& comparison) {
 
     // Check for an arbitrage opportunity
     if (best_bid > best_ask) {
-        ExchangeFees buy_fees = config_manager_->get_exchange_fees(best_ask_exchange);
-        ExchangeFees sell_fees = config_manager_->get_exchange_fees(best_bid_exchange);
+        double buy_taker_fee = config_manager_->get_exchange_configs().at(best_ask_exchange).taker_fee;
+        double sell_taker_fee = config_manager_->get_exchange_configs().at(best_bid_exchange).taker_fee;
 
-        double buy_price_with_fee = best_ask * (1 + buy_fees.taker_fee);
-        double sell_price_with_fee = best_bid * (1 - sell_fees.taker_fee);
+        double buy_price_with_fee = best_ask * (1 + buy_taker_fee);
+        double sell_price_with_fee = best_bid * (1 - sell_taker_fee);
         double profit = sell_price_with_fee - buy_price_with_fee;
 
         if (profit > 0) {

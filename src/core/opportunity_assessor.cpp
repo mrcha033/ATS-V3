@@ -1,5 +1,4 @@
 #include "opportunity_assessor.hpp"
-#include "risk_manager.hpp"
 #include "../utils/logger.hpp"
 
 namespace ats {

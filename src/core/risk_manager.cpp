@@ -318,7 +318,7 @@ void RiskManager::ResumeTrading() {
     LOG_INFO("Trading resumed");
 }
 
-bool RiskManager::CheckTradeRate() {
+bool RiskManager::CheckTradeRate() const {
     std::lock_guard<std::mutex> lock(rate_tracker_.mutex);
     
     auto now = std::chrono::system_clock::now();

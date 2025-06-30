@@ -100,7 +100,8 @@ public:
     // Core risk assessment
     RiskAssessment AssessOpportunity(const ArbitrageOpportunity& opportunity);
     virtual bool IsTradeAllowed(const ArbitrageOpportunity& opportunity);
-    double CalculateMaxPositionSize(const ArbitrageOpportunity& opportunity);
+    double CalculateMaxPositionSize(const ArbitrageOpportunity& opportunity) const;
+    virtual bool IsTradeAllowed(const ArbitrageOpportunity& opportunity) const;
     
     // Position management
     void RecordTradeStart(const std::string& trade_id, const ArbitrageOpportunity& opportunity, double volume);
@@ -133,7 +134,7 @@ public:
     bool IsSpreadAcceptable(const ArbitrageOpportunity& opportunity) const;
     
     // Rate limiting
-    bool CheckTradeRate();
+    bool CheckTradeRate() const;
     int GetTradesInLastMinute() const;
     int GetTradesInLastHour() const;
     int GetTradesInLastDay() const;
@@ -231,7 +232,7 @@ private:
     void RecordTradeTime();
     void CleanupOldTrades();
     void CleanupOldRateData();
-    double CalculateRewardRiskRatio(const ArbitrageOpportunity& opportunity, double volume) const;
+        double CalculateRewardRiskRatio(const ArbitrageOpportunity& opportunity, double volume) const;
     std::string GetAssetFromSymbol(const std::string& symbol) const;
     
     // Time-based utilities

@@ -8,7 +8,7 @@ namespace ats {
 
 class BinanceExchange : public ExchangeInterface {
 public:
-    BinanceExchange(const nlohmann::json& config, ats::AppState* app_state);
+    BinanceExchange(const ExchangeConfig& config, ats::AppState* app_state);
 
     std::string get_name() const override;
     void connect() override;

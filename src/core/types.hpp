@@ -79,6 +79,27 @@ struct Order {
     double price;
     double quantity;
     OrderStatus status;
+    double executed_quantity;
+    double cummulative_quote_quantity;
+    double commission;
+    std::string commission_asset;
+    long long transaction_time;
+    bool is_working;
+    std::string client_order_id;
+};
+
+struct OrderResult {
+    std::string order_id;
+    std::string client_order_id;
+    std::string symbol;
+    OrderSide side;
+    double executed_quantity;
+    double cummulative_quote_quantity;
+    OrderStatus status;
+    double commission;
+    std::string commission_asset;
+    long long transaction_time;
+    std::string exchange_name;
 };
 
 struct Trade {
@@ -87,6 +108,16 @@ struct Trade {
     double price;
     double quantity;
     long long timestamp;
+    std::string buy_exchange;
+    std::string sell_exchange;
+    double buy_price;
+    double sell_price;
+    double volume;
+    double profit;
+    std::string buy_order_id;
+    std::string sell_order_id;
+    double executed_buy_quantity;
+    double executed_sell_quantity;
 };
 
 struct Opportunity {

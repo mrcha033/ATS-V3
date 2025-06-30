@@ -8,7 +8,7 @@ namespace ats {
 
 class UpbitExchange : public ExchangeInterface {
 public:
-    UpbitExchange(const nlohmann::json& config, ats::AppState* app_state);
+    UpbitExchange(const ExchangeConfig& config, ats::AppState* app_state);
 
     std::string get_name() const override;
     void connect() override;
