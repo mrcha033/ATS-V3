@@ -1,0 +1,57 @@
+{
+  "exchanges": {
+    "binance": {
+      "enabled": true,
+      "api_key": "YOUR_BINANCE_API_KEY",
+      "secret_key": "YOUR_BINANCE_SECRET_KEY",
+      "sandbox": false,
+      "rate_limit": 1200,
+      "timeout": 5000
+    },
+    "upbit": {
+      "enabled": true,
+      "api_key": "YOUR_UPBIT_API_KEY",
+      "secret_key": "YOUR_UPBIT_SECRET_KEY",
+      "sandbox": false,
+      "rate_limit": 600,
+      "timeout": 5000
+    },
+    "coinbase": {
+      "enabled": false,
+      "api_key": "YOUR_COINBASE_API_KEY",
+      "secret_key": "YOUR_COINBASE_SECRET_KEY",
+      "sandbox": true,
+      "rate_limit": 1000,
+      "timeout": 5000
+    }
+  },
+  "trading": {
+    "enabled": true,
+    "min_spread_threshold": 0.005,
+    "max_position_size": 1000.0,
+    "max_daily_trades": 100,
+    "emergency_stop_loss": 0.02,
+    "commission_rate": 0.001
+  },
+  "risk_management": {
+    "max_portfolio_risk": 0.05,
+    "max_single_trade_risk": 0.01,
+    "stop_loss_percentage": 0.02,
+    "take_profit_percentage": 0.01,
+    "max_drawdown": 0.05
+  },
+  "monitoring": {
+    "log_level": "INFO",
+    "metrics_enabled": true,
+    "prometheus_port": 9090,
+    "dashboard_port": 8080,
+    "notification_email": "admin@example.com"
+  },
+  "database": {
+    "redis_host": "localhost",
+    "redis_port": 6379,
+    "influxdb_host": "localhost",
+    "influxdb_port": 8086,
+    "rocksdb_path": "./data/rocksdb"
+  }
+}
