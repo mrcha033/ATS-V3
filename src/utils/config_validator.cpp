@@ -1,9 +1,19 @@
 #include "config_validator.hpp"
-#include <filesystem>
 #include <regex>
 #include <algorithm>
 #include <numeric>
 #include <limits>
+
+// Conditional filesystem include
+#if __cplusplus >= 201703L && __has_include(<filesystem>)
+    #include <filesystem>
+    namespace fs = std::filesystem;
+    #define HAS_FILESYSTEM
+#elif __has_include(<experimental/filesystem>)
+    #include <experimental/filesystem>
+    namespace fs = std::experimental::filesystem;
+    #define HAS_FILESYSTEM
+#endif
 
 namespace ats {
 
@@ -397,17 +407,18 @@ bool ConfigValidator::validate_trading_pair(const std::string& pair) {
 }
 
 bool ConfigValidator::validate_file_path(const std::string& path, bool must_exist) {
-    if (must_exist && !std::filesystem::exists(path)) {
+#ifdef HAS_FILESYSTEM
+    if (must_exist && !fs::exists(path)) {
         return false;
     }
     
     // Check if parent directory exists or can be created
-    std::filesystem::path file_path(path);
+    fs::path file_path(path);
     if (file_path.has_parent_path()) {
-        std::filesystem::path parent = file_path.parent_path();
-        if (!std::filesystem::exists(parent)) {
+        fs::path parent = file_path.parent_path();
+        if (!fs::exists(parent)) {
             std::error_code ec;
-            std::filesystem::create_directories(parent, ec);
+            fs::create_directories(parent, ec);
             if (ec) {
                 return false;
             }
@@ -415,6 +426,22 @@ bool ConfigValidator::validate_file_path(const std::string& path, bool must_exis
     }
     
     return true;
+#else
+    // Basic validation without filesystem support
+    if (path.empty()) {
+        return false;
+    }
+    
+    // Check for invalid characters (basic check)
+    const std::string invalid_chars = "<>:\"|?*";
+    for (char c : invalid_chars) {
+        if (path.find(c) != std::string::npos) {
+            return false;
+        }
+    }
+    
+    return true;
+#endif
 }
 
 void ConfigValidator::add_error(const std::string& field, const std::string& message, 

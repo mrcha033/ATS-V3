@@ -11,11 +11,13 @@
 #include <atomic>
 #include <map>
 
-#ifdef HAVE_CURL
-#include <curl/curl.h>
+#ifdef HAS_LIBCURL
+    #include <curl/curl.h>
 #else
-// Stub types when CURL is not available
-typedef void CURL;
+    // Stub types when CURL is not available
+    typedef void CURL;
+    // Include fallback HTTP client
+    #include "../utils/fallback_http.hpp"
 #endif
 
 namespace ats {

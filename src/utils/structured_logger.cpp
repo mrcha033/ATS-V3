@@ -3,8 +3,18 @@
 #include <iostream>
 #include <thread>
 #include <mutex>
-#include <filesystem>
 #include <cstring>
+
+// Conditional filesystem include
+#if __cplusplus >= 201703L && __has_include(<filesystem>)
+    #include <filesystem>
+    namespace fs = std::filesystem;
+    #define HAS_FILESYSTEM
+#elif __has_include(<experimental/filesystem>)
+    #include <experimental/filesystem>
+    namespace fs = std::experimental::filesystem;
+    #define HAS_FILESYSTEM
+#endif
 
 namespace ats {
 
@@ -19,11 +29,17 @@ void StructuredLogger::init(const std::string& log_file_path, LogLevel min_level
     
     min_level_ = min_level;
     
-    // Create log directory if it doesn't exist
-    std::filesystem::path log_path(log_file_path);
+    // Create log directory if it doesn't exist (if filesystem is available)
+#ifdef HAS_FILESYSTEM
+    fs::path log_path(log_file_path);
     if (log_path.has_parent_path()) {
-        std::filesystem::create_directories(log_path.parent_path());
+        std::error_code ec;
+        fs::create_directories(log_path.parent_path(), ec);
+        if (ec) {
+            std::cerr << "Warning: Could not create log directory: " << ec.message() << std::endl;
+        }
     }
+#endif
     
     log_file_ = std::make_unique<std::ofstream>(log_file_path, std::ios::app);
     if (!log_file_->is_open()) {
