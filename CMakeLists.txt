@@ -1,54 +1,69 @@
-cmake_minimum_required(VERSION 3.10)
-project(ATS-V3 CXX)
+cmake_minimum_required(VERSION 3.16)
+project(ATS-V3 VERSION 1.0.0 LANGUAGES CXX)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Compiler-specific options
-if(MSVC)
-    add_compile_options(/W4 /permissive-)
-    add_compile_definitions(_WIN32_WINNT=0x0601) # Windows 7+
-else()
-    add_compile_options(-Wall -Wextra -Wpedantic)
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        add_compile_options(-O3)
-    endif()
+# Set build type
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
 endif()
 
-# Platform-specific libraries
-if(WIN32)
-    # Windows-specific libraries
-    set(PLATFORM_LIBS ws2_32 winhttp)
-else()
-    # Unix-specific libraries
-    set(PLATFORM_LIBS)
-    # Try to find curl, but make it optional
-    find_package(PkgConfig QUIET)
-    if(PkgConfig_FOUND)
-        pkg_check_modules(LIBCURL QUIET libcurl)
-        if(LIBCURL_FOUND)
-            set(PLATFORM_LIBS ${PLATFORM_LIBS} ${LIBCURL_LIBRARIES})
-            add_compile_definitions(HAS_LIBCURL)
-        endif()
-    endif()
-endif()
+# Set compiler flags
+set(CMAKE_CXX_FLAGS "-Wall -Wextra")
+set(CMAKE_CXX_FLAGS_DEBUG "-g")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
-# Find Threads (usually available)
+# Find packages
 find_package(Threads REQUIRED)
+find_package(OpenSSL REQUIRED)
+find_package(Boost REQUIRED COMPONENTS system thread)
 
-# Include nlohmann/json header-only library
-include(FetchContent)
-FetchContent_Declare(
-    nlohmann_json
-    GIT_REPOSITORY https://github.com/nlohmann/json.git
-    GIT_TAG v3.11.2
-)
-FetchContent_MakeAvailable(nlohmann_json)
+# Include Conan
+include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+conan_basic_setup()
 
 # Include directories
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
+include_directories(
+    ${CMAKE_SOURCE_DIR}/shared/include
+    ${CMAKE_SOURCE_DIR}/price_collector/include
+    ${CMAKE_SOURCE_DIR}/trading_engine/include
+    ${CMAKE_SOURCE_DIR}/risk_manager/include
+    ${CMAKE_SOURCE_DIR}/backtest_analytics/include
+)
 
-add_subdirectory(src)
+# Add subdirectories
+add_subdirectory(shared)
+add_subdirectory(price_collector)
+add_subdirectory(trading_engine)
+add_subdirectory(risk_manager)
+add_subdirectory(backtest_analytics)
+
+# Main executable
+add_executable(ats-v3
+    src/main.cpp
+)
+
+# Link libraries
+target_link_libraries(ats-v3
+    shared
+    price_collector
+    trading_engine
+    risk_manager
+    backtest_analytics
+    ${CONAN_LIBS}
+    Threads::Threads
+    OpenSSL::SSL
+    OpenSSL::Crypto
+    ${Boost_LIBRARIES}
+)
+
+# Install targets
+install(TARGETS ats-v3
+    RUNTIME DESTINATION bin
+)
+
+# Testing
+enable_testing()
 add_subdirectory(tests)

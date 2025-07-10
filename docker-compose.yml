@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  ats-v3:
+    build: .
+    container_name: ats-v3
+    restart: unless-stopped
+    depends_on:
+      - redis
+      - influxdb
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - INFLUXDB_HOST=influxdb
+      - INFLUXDB_PORT=8086
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+      - ./data:/app/data
+    ports:
+      - "8080:8080"
+    networks:
+      - ats-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: ats-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - ats-network
+
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: ats-influxdb
+    restart: unless-stopped
+    environment:
+      - INFLUXDB_DB=ats
+      - INFLUXDB_ADMIN_USER=admin
+      - INFLUXDB_ADMIN_PASSWORD=password
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    ports:
+      - "8086:8086"
+    networks:
+      - ats-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ats-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - ats-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ats-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - ats-network
+
+volumes:
+  redis_data:
+  influxdb_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  ats-network:
+    driver: bridge

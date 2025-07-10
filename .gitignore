@@ -1,0 +1,56 @@
+# Build directories
+build/
+cmake-build-*/
+out/
+bin/
+lib/
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS specific files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Conan
+conan.lock
+conanbuild.sh
+conanrun.sh
+conanenv.sh
+
+# Config files with sensitive data
+config/settings.json
+*.key
+*.pem
+*.cert
+
+# Log files
+*.log
+logs/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+
+# Python cache (if any Python scripts)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Node modules (if any JS/TS tools)
+node_modules/
+
+# Docker
+*.dockerignore
