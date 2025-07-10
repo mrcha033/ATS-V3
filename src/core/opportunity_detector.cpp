@@ -1,5 +1,6 @@
 #include "opportunity_detector.hpp"
 #include <iostream>
+#include "../utils/logger.hpp"
 
 namespace ats {
 
@@ -38,12 +39,14 @@ void OpportunityDetector::update_prices(const PriceComparison& comparison) {
 
     // Check for an arbitrage opportunity
     if (best_bid > best_ask) {
+        LOG_INFO("Potential opportunity found for {}: buy at {} on {}, sell at {} on {}", comparison.symbol, best_ask, best_ask_exchange, best_bid, best_bid_exchange);
         double buy_taker_fee = config_manager_->get_exchange_configs().at(best_ask_exchange).taker_fee;
         double sell_taker_fee = config_manager_->get_exchange_configs().at(best_bid_exchange).taker_fee;
 
         double buy_price_with_fee = best_ask * (1 + buy_taker_fee);
         double sell_price_with_fee = best_bid * (1 - sell_taker_fee);
         double profit = sell_price_with_fee - buy_price_with_fee;
+        LOG_INFO("Profit after fees: {}", profit);
 
         if (profit > 0) {
             ArbitrageOpportunity opportunity;
@@ -56,6 +59,7 @@ void OpportunityDetector::update_prices(const PriceComparison& comparison) {
             opportunity.is_executable = true;
 
             if (event_pusher_) {
+                LOG_INFO("Pushing arbitrage opportunity event");
                 event_pusher_->push_event(ArbitrageOpportunityEvent{opportunity});
             }
         }

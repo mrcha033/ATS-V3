@@ -14,9 +14,10 @@ public:
     void connect() override;
     void disconnect() override;
     Price get_price(const std::string& symbol) override;
+    OrderResult place_order(const Order& order) override;
 
 private:
-    nlohmann::json config_;
+    ExchangeConfig config_;
     ats::AppState* app_state_;
 };
 

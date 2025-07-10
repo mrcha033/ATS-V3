@@ -1,17 +1,19 @@
+# Enable testing
+enable_testing()
 
-
-
-cmake_minimum_required(VERSION 3.10)
-
-project(ATS-V3-Tests)
-
-# Include the main executable's sources to resolve dependencies
-include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src
-    ${CMAKE_CURRENT_SOURCE_DIR}/googletest/googletest/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/googletest/googlemock/include
+# Use FetchContent to get GoogleTest
+include(FetchContent)
+FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG        v1.13.0
 )
 
+# For Windows: Prevent overriding the parent project's compiler/linker settings
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
+
+# Test executable
 add_executable(run_tests
     test_main.cpp
     test_portfolio_manager.cpp
@@ -19,30 +21,35 @@ add_executable(run_tests
     test_arbitrage_engine.cpp
     test_opportunity_detector.cpp
     test_price_monitor.cpp
-    googletest/googletest/src/gtest-all.cc
-    googletest/googlemock/src/gmock-all.cc
-    googletest/googletest/src/gtest_main.cc
+    integration/test_end_to_end.cpp
+    integration/test_exchange_integration.cpp
 )
 
+# Include directories
 target_include_directories(run_tests PRIVATE
-    ../src
-    googletest/googletest/include
-    googletest/googlemock/include
-    googletest/googletest
-    googletest/googlemock
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}/mocks
 )
 
-target_link_libraries(run_tests ats-v3-lib)
+# Link libraries
+target_link_libraries(run_tests
+    ats-v3-lib
+    gtest_main
+    gmock_main
+    nlohmann_json::nlohmann_json
+)
 
+# Compiler definitions
+target_compile_definitions(run_tests PRIVATE
+    GTEST_HAS_PTHREAD=1
+)
 
+# Set C++ standard for tests
+set_target_properties(run_tests PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)
 
-
-
-
+# Discover tests
 include(GoogleTest)
 gtest_discover_tests(run_tests)
-
-
-
-
-

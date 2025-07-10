@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(chmod:*)",
+      "Bash(rm:*)",
+      "Bash(mkdir:*)",
+      "Bash(cmake:*)",
+      "Bash(ls:*)",
+      "Bash(./scripts/validate_build.sh:*)",
+      "Bash(bash:*)",
+      "Bash(grep:*)"
+    ],
+    "deny": []
+  }
+}

@@ -32,17 +32,19 @@ TEST(OpportunityDetectorTest, OpportunityFoundWhenBidIsHigherThanAsk) {
     detector.set_event_pusher(&mock_event_pusher);
 
     EXPECT_CALL(mock_event_pusher, push_event(A<ats::Event>()))
-        .With(Property(&ats::Event::get<ats::ArbitrageOpportunityEvent>,
-                       Property(&ats::ArbitrageOpportunityEvent::opportunity,
-                                AllOf(Property(&ats::ArbitrageOpportunity::symbol, "BTC/USDT"),
-                                      Property(&ats::ArbitrageOpportunity::buy_exchange, "exchange2"),
-                                      Property(&ats::ArbitrageOpportunity::sell_exchange, "exchange1"),
-                                      Property(&ats::ArbitrageOpportunity::buy_price, 100),
-                                      Property(&ats::ArbitrageOpportunity::sell_price, 101)))));
+        .WillOnce([](const ats::Event& event) {
+            ASSERT_TRUE(std::holds_alternative<ats::ArbitrageOpportunityEvent>(event));
+            auto opportunity_event = std::get<ats::ArbitrageOpportunityEvent>(event);
+            EXPECT_EQ(opportunity_event.opportunity.symbol, "BTC/USDT");
+            EXPECT_EQ(opportunity_event.opportunity.buy_exchange, "exchange2");
+            EXPECT_EQ(opportunity_event.opportunity.sell_exchange, "exchange1");
+            EXPECT_EQ(opportunity_event.opportunity.buy_price, 100);
+            EXPECT_EQ(opportunity_event.opportunity.sell_price, 102);
+        });
 
     ats::PriceComparison comparison;
     comparison.symbol = "BTC/USDT";
-    comparison.exchange_prices["exchange1"] = { "BTC/USDT", 101, 102, 101.5, 1000, 0 };
+    comparison.exchange_prices["exchange1"] = { "BTC/USDT", 102, 103, 102.5, 1000, 0 };
     comparison.exchange_prices["exchange2"] = { "BTC/USDT", 99, 100, 99.5, 1000, 0 };
 
     detector.update_prices(comparison);

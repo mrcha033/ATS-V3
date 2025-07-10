@@ -3,9 +3,11 @@
 #include <memory>
 #include <vector>
 #include <string>
+#include <map>
 #include <nlohmann/json.hpp>
 #include "exchange_interface.hpp"
 #include "../core/app_state.hpp"
+#include "../utils/config_types.hpp"
 
 namespace ats {
 

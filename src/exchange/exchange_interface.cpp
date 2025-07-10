@@ -2,6 +2,8 @@
 
 namespace ats {
 
-// No implementation needed for a pure virtual class
+ExchangeInterface::ExchangeInterface(const ExchangeConfig& config, AppState* app_state) {
+    // Constructor implementation
+}
 
-} 
+}

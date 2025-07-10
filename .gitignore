@@ -20,6 +20,14 @@ Makefile
 *.cmake
 !CMakeLists.txt
 
+# Visual Studio project files
+*.vcxproj*
+*.sln
+*.tlog
+*.recipe
+*.filters
+x64/
+
 # Compiled Object files
 *.slo
 *.lo

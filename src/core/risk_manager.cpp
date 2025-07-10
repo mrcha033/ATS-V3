@@ -81,7 +81,7 @@ RiskAssessment RiskManager::AssessOpportunity(const ArbitrageOpportunity& opport
         }
         
         // Check basic opportunity validity
-        if (opportunity.is_executable) {
+        if (!opportunity.is_executable) {
             assessment.rejections.push_back("Opportunity is not executable");
             return assessment;
         }
@@ -140,12 +140,12 @@ bool RiskManager::IsTradeAllowed(const ArbitrageOpportunity& opportunity) {
     return assessment.is_approved;
 }
 
-double RiskManager::CalculateMaxPositionSize(const ArbitrageOpportunity& opportunity) {
+double RiskManager::CalculateMaxPositionSize(const ArbitrageOpportunity& opportunity) const {
     // Check position size limits
     double max_size = limits_.max_position_size_usd;
     
     // Check total exposure limit
-    double current_exposure = GetTotalExposure();
+    double current_exposure = this->GetTotalExposure();
     double remaining_exposure = limits_.max_total_exposure_usd - current_exposure;
     max_size = std::min(max_size, remaining_exposure);
     

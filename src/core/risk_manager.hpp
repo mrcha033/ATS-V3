@@ -101,7 +101,6 @@ public:
     RiskAssessment AssessOpportunity(const ArbitrageOpportunity& opportunity);
     virtual bool IsTradeAllowed(const ArbitrageOpportunity& opportunity);
     double CalculateMaxPositionSize(const ArbitrageOpportunity& opportunity) const;
-    virtual bool IsTradeAllowed(const ArbitrageOpportunity& opportunity) const;
     
     // Position management
     void RecordTradeStart(const std::string& trade_id, const ArbitrageOpportunity& opportunity, double volume);
@@ -175,6 +174,34 @@ public:
     // External notification system
     void NotifyExternalSystems(const std::string& reason);
 
+    // Risk calculation methods
+    double CalculatePositionRisk(const ArbitrageOpportunity& opportunity, double volume) const;
+    double CalculateMarketRisk(const ArbitrageOpportunity& opportunity) const;
+    double CalculateLiquidityRisk(const ArbitrageOpportunity& opportunity) const;
+    double CalculateExecutionRisk(const ArbitrageOpportunity& opportunity) const;
+    double CalculateConcentrationRisk(const std::string& symbol) const;
+    
+    // Validation methods
+    bool CheckPositionLimits(const ArbitrageOpportunity& opportunity, double volume) const;
+    bool CheckExposureLimits(const ArbitrageOpportunity& opportunity, double volume) const;
+    bool CheckLossLimits() const;
+    bool CheckVolumeLimits(double volume) const;
+    
+    // Helper methods
+    void RecordTradeTime();
+    void CleanupOldTrades();
+    void CleanupOldRateData();
+    double CalculateRewardRiskRatio(const ArbitrageOpportunity& opportunity, double volume) const;
+    std::string GetAssetFromSymbol(const std::string& symbol) const;
+    
+    // Time-based utilities
+    bool IsSameDay(const std::chrono::system_clock::time_point& time1,
+                   const std::chrono::system_clock::time_point& time2) const;
+    bool IsSameWeek(const std::chrono::system_clock::time_point& time1,
+                    const std::chrono::system_clock::time_point& time2) const;
+    bool IsSameMonth(const std::chrono::system_clock::time_point& time1,
+                     const std::chrono::system_clock::time_point& time2) const;
+
 private:
     ConfigManager* config_manager_;
     RiskLimits limits_;
@@ -215,33 +242,6 @@ private:
     std::atomic<long long> trades_rejected_;
     std::atomic<long long> risk_violations_;
 
-    // Risk calculation methods
-    double CalculatePositionRisk(const ArbitrageOpportunity& opportunity, double volume) const;
-    double CalculateMarketRisk(const ArbitrageOpportunity& opportunity) const;
-    double CalculateLiquidityRisk(const ArbitrageOpportunity& opportunity) const;
-    double CalculateExecutionRisk(const ArbitrageOpportunity& opportunity) const;
-    double CalculateConcentrationRisk(const std::string& symbol) const;
-    
-    // Validation methods
-    bool CheckPositionLimits(const ArbitrageOpportunity& opportunity, double volume) const;
-    bool CheckExposureLimits(const ArbitrageOpportunity& opportunity, double volume) const;
-    bool CheckLossLimits() const;
-    bool CheckVolumeLimits(double volume) const;
-    
-    // Helper methods
-    void RecordTradeTime();
-    void CleanupOldTrades();
-    void CleanupOldRateData();
-        double CalculateRewardRiskRatio(const ArbitrageOpportunity& opportunity, double volume) const;
-    std::string GetAssetFromSymbol(const std::string& symbol) const;
-    
-    // Time-based utilities
-    bool IsSameDay(const std::chrono::system_clock::time_point& time1,
-                   const std::chrono::system_clock::time_point& time2) const;
-    bool IsSameWeek(const std::chrono::system_clock::time_point& time1,
-                    const std::chrono::system_clock::time_point& time2) const;
-    bool IsSameMonth(const std::chrono::system_clock::time_point& time1,
-                     const std::chrono::system_clock::time_point& time2) const;
 };
 
 } // namespace ats 

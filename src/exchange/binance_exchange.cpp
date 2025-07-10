@@ -4,7 +4,7 @@
 namespace ats {
 
 BinanceExchange::BinanceExchange(const ExchangeConfig& config, AppState* app_state)
-    : config_(config), app_state_(app_state) {}
+    : ExchangeInterface(config, app_state), config_(config), app_state_(app_state) {}
 
 std::string BinanceExchange::get_name() const {
     return "binance";

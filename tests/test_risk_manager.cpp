@@ -2,11 +2,16 @@
 #include "core/risk_manager.hpp"
 #include "utils/config_manager.hpp"
 #include "data/database_manager.hpp"
+#include "utils/logger.hpp"
 
 class RiskManagerTest : public ::testing::Test {
 protected:
     void SetUp() override {
+        ats::LoggingConfig logging_config;
+        logging_config.console_output = true;
+        ats::Logger::init(logging_config, ats::LogLevel::DEBUG);
         config_manager = std::make_unique<ats::ConfigManager>();
+        config_manager->load("config/settings.json");
         db_manager = std::make_unique<ats::DatabaseManager>(":memory:");
         risk_manager = std::make_unique<ats::RiskManager>(config_manager.get(), db_manager.get());
         risk_manager->Initialize();
@@ -19,10 +24,7 @@ protected:
 
 TEST_F(RiskManagerTest, AssessOpportunity_Approved) {
     ats::ArbitrageOpportunity opportunity;
-    opportunity.is_valid = true;
-    opportunity.has_sufficient_balance = true;
-    opportunity.meets_min_profit = true;
-    opportunity.within_risk_limits = true;
+    opportunity.is_executable = true;
     opportunity.net_profit_percent = 1.0;
     opportunity.max_volume = 1000;
     opportunity.buy_price = 100;
@@ -37,10 +39,7 @@ TEST_F(RiskManagerTest, AssessOpportunity_ExceedsMaxPositionSize) {
     risk_manager->SetLimits(limits);
 
     ats::ArbitrageOpportunity opportunity;
-    opportunity.is_valid = true;
-    opportunity.has_sufficient_balance = true;
-    opportunity.meets_min_profit = true;
-    opportunity.within_risk_limits = true;
+    opportunity.is_executable = true;
     opportunity.net_profit_percent = 1.0;
     opportunity.max_volume = 1000;
     opportunity.buy_price = 100;
@@ -56,10 +55,7 @@ TEST_F(RiskManagerTest, AssessOpportunity_DailyLossLimitExceeded) {
     risk_manager->SetLimits(limits);
 
     ats::ArbitrageOpportunity opportunity;
-    opportunity.is_valid = true;
-    opportunity.has_sufficient_balance = true;
-    opportunity.meets_min_profit = true;
-    opportunity.within_risk_limits = true;
+    opportunity.is_executable = true;
     opportunity.net_profit_percent = 1.0;
     opportunity.max_volume = 1000;
     opportunity.buy_price = 100;
@@ -74,10 +70,7 @@ TEST_F(RiskManagerTest, AssessOpportunity_InsufficientLiquidity) {
     risk_manager->SetLimits(limits);
 
     ats::ArbitrageOpportunity opportunity;
-    opportunity.is_valid = true;
-    opportunity.has_sufficient_balance = true;
-    opportunity.meets_min_profit = true;
-    opportunity.within_risk_limits = true;
+    opportunity.is_executable = true;
     opportunity.net_profit_percent = 1.0;
     opportunity.max_volume = 1000;
     opportunity.buy_price = 100;
@@ -94,10 +87,7 @@ TEST_F(RiskManagerTest, AssessOpportunity_HighSpread) {
     risk_manager->SetLimits(limits);
 
     ats::ArbitrageOpportunity opportunity;
-    opportunity.is_valid = true;
-    opportunity.has_sufficient_balance = true;
-    opportunity.meets_min_profit = true;
-    opportunity.within_risk_limits = true;
+    opportunity.is_executable = true;
     opportunity.net_profit_percent = 1.0;
     opportunity.max_volume = 1000;
     opportunity.buy_price = 100;
@@ -111,10 +101,7 @@ TEST_F(RiskManagerTest, AssessOpportunity_KillSwitchActive) {
     risk_manager->ActivateKillSwitch("Test");
 
     ats::ArbitrageOpportunity opportunity;
-    opportunity.is_valid = true;
-    opportunity.has_sufficient_balance = true;
-    opportunity.meets_min_profit = true;
-    opportunity.within_risk_limits = true;
+    opportunity.is_executable = true;
     opportunity.net_profit_percent = 1.0;
     opportunity.max_volume = 1000;
     opportunity.buy_price = 100;
@@ -127,10 +114,7 @@ TEST_F(RiskManagerTest, AssessOpportunity_TradingHalted) {
     risk_manager->HaltTrading("Test");
 
     ats::ArbitrageOpportunity opportunity;
-    opportunity.is_valid = true;
-    opportunity.has_sufficient_balance = true;
-    opportunity.meets_min_profit = true;
-    opportunity.within_risk_limits = true;
+    opportunity.is_executable = true;
     opportunity.net_profit_percent = 1.0;
     opportunity.max_volume = 1000;
     opportunity.buy_price = 100;

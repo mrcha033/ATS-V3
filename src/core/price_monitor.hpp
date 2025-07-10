@@ -23,6 +23,8 @@ public:
 
 private:
     void run();
+
+public:
     void check_prices();
 
     ConfigManager* config_manager_;

@@ -1,0 +1,14 @@
+# Cppcheck configuration for ATS-V3
+# Run with: cppcheck --project=compile_commands.json --suppress-file=.cppcheck
+
+# Suppress specific warnings
+missingInclude
+unusedFunction
+unmatchedSuppression
+toomanyconfigs
+
+# File patterns to ignore
+*/sqlite3.c
+*/googletest/*
+*/build/*
+*/CMakeFiles/*

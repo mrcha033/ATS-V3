@@ -53,39 +53,39 @@ bool ConfigManager::load(const std::string& file_path) {
     return true;
 }
 
-const AppConfig& ConfigManager::get_app_config() const {
+AppConfig& ConfigManager::get_app_config() {
     return app_config_;
 }
 
-const std::map<std::string, ExchangeConfig>& ConfigManager::get_exchange_configs() const {
+std::map<std::string, ExchangeConfig>& ConfigManager::get_exchange_configs() {
     return exchange_configs_;
 }
 
-const TradingConfig& ConfigManager::get_trading_config() const {
+TradingConfig& ConfigManager::get_trading_config() {
     return trading_config_;
 }
 
-const ArbitrageConfig& ConfigManager::get_arbitrage_config() const {
+ArbitrageConfig& ConfigManager::get_arbitrage_config() {
     return arbitrage_config_;
 }
 
-const RiskManagementConfig& ConfigManager::get_risk_management_config() const {
+RiskManagementConfig& ConfigManager::get_risk_management_config() {
     return risk_management_config_;
 }
 
-const MonitoringConfig& ConfigManager::get_monitoring_config() const {
+MonitoringConfig& ConfigManager::get_monitoring_config() {
     return monitoring_config_;
 }
 
-const AlertsConfig& ConfigManager::get_alerts_config() const {
+AlertsConfig& ConfigManager::get_alerts_config() {
     return alerts_config_;
 }
 
-const DatabaseConfig& ConfigManager::get_database_config() const {
+DatabaseConfig& ConfigManager::get_database_config() {
     return database_config_;
 }
 
-const LoggingConfig& ConfigManager::get_logging_config() const {
+LoggingConfig& ConfigManager::get_logging_config() {
     return logging_config_;
 }
 

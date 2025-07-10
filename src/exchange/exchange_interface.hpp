@@ -4,11 +4,15 @@
 #include <vector>
 #include <memory>
 #include "../core/types.hpp"
+#include "../utils/config_types.hpp"
 
 namespace ats {
 
+class AppState;
+
 class ExchangeInterface {
 public:
+    ExchangeInterface(const ExchangeConfig& config, AppState* app_state);
     virtual ~ExchangeInterface() = default;
 
     virtual std::string get_name() const = 0;

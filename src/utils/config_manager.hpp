@@ -12,15 +12,15 @@ class ConfigManager {
 public:
     bool load(const std::string& file_path);
 
-    const AppConfig& get_app_config() const;
-    const std::map<std::string, ExchangeConfig>& get_exchange_configs() const;
-    const TradingConfig& get_trading_config() const;
-    const ArbitrageConfig& get_arbitrage_config() const;
-    const RiskManagementConfig& get_risk_management_config() const;
-    const MonitoringConfig& get_monitoring_config() const;
-    const AlertsConfig& get_alerts_config() const;
-    const DatabaseConfig& get_database_config() const;
-    const LoggingConfig& get_logging_config() const;
+    AppConfig& get_app_config();
+    std::map<std::string, ExchangeConfig>& get_exchange_configs();
+    TradingConfig& get_trading_config();
+    ArbitrageConfig& get_arbitrage_config();
+    RiskManagementConfig& get_risk_management_config();
+    MonitoringConfig& get_monitoring_config();
+    AlertsConfig& get_alerts_config();
+    DatabaseConfig& get_database_config();
+    LoggingConfig& get_logging_config();
 
 private:
     nlohmann::json config_data_; // Keep for initial parsing

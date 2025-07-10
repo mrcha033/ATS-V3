@@ -22,7 +22,7 @@
 
 // Global application state
 ats::AppState app_state;
-ats::EventLoop* event_loop_ptr = nullptr;
+std::unique_ptr<ats::EventLoop> event_loop_ptr = nullptr;
 
 // Signal handler for graceful shutdown
 void signal_handler(int signal) {
@@ -94,12 +94,11 @@ int main(int argc, char* argv[]) {
     auto system_monitor = std::make_unique<ats::SystemMonitor>();
 
     // Initialize event loop
-    ats::EventLoop event_loop(opportunity_detector.get(), arbitrage_engine.get());
-    event_loop_ptr = &event_loop;
+    event_loop_ptr = std::make_unique<ats::EventLoop>(opportunity_detector.get(), arbitrage_engine.get());
 
     // Set up dependencies
-    price_monitor->set_event_pusher(&event_loop);
-    opportunity_detector->set_event_pusher(&event_loop);
+    price_monitor->set_event_pusher(event_loop_ptr.get());
+    opportunity_detector->set_event_pusher(event_loop_ptr.get());
 
     // Start all components in separate threads
     std::vector<std::thread> threads;
@@ -115,7 +114,7 @@ int main(int argc, char* argv[]) {
     ats::Logger::info("ATS-V3 is running.");
 
     // Start the event loop
-    event_loop.run();
+    event_loop_ptr->run();
 
     // Stop all components
     ats::Logger::info("Stopping all components...");

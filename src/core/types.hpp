@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <unordered_map>
 #include <nlohmann/json.hpp>
 
 namespace ats {
@@ -153,23 +154,19 @@ struct ArbitrageOpportunity {
     std::string symbol;
     std::string buy_exchange;
     std::string sell_exchange;
-    double buy_price;
-    double sell_price;
-    double volume;
-    double profit;
-    bool is_executable;
-    double net_profit_percent;
-    double max_volume;
-    double buy_liquidity;
-    double sell_liquidity;
-    double buy_ask;
-    double buy_bid;
-    double sell_ask;
-    double sell_bid;
-    bool is_valid;
-    bool has_sufficient_balance;
-    bool meets_min_profit;
-    bool within_risk_limits;
+    double buy_price = 0.0;
+    double sell_price = 0.0;
+    double volume = 0.0;
+    double profit = 0.0;
+    bool is_executable = false;
+    double net_profit_percent = 0.0;
+    double max_volume = 0.0;
+    double buy_liquidity = 0.0;
+    double sell_liquidity = 0.0;
+    double buy_ask = 0.0;
+    double buy_bid = 0.0;
+    double sell_ask = 0.0;
+    double sell_bid = 0.0;
 };
 
 struct Notification {
