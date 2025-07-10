@@ -126,7 +126,7 @@ public:
     
     // Real-time monitoring
     void start_realtime_monitoring();
-    void stop_realtime_monitoring();
+    void stop_realtime_monitoring();\n    \n    // Automatic trading halt and limit checking\n    void check_and_trigger_halt();\n    void resume_after_halt();\n    bool check_all_limits() const;\n    std::vector<std::string> get_limit_violations() const;
     
     // P&L and position management
     void update_position_realtime(const std::string& symbol, const std::string& exchange,
@@ -213,7 +213,7 @@ private:
     void send_alert_to_influxdb(const RiskAlert& alert);
     
     std::string generate_alert_id() const;
-    void log_risk_event(const std::string& event_type, const std::string& details);
+    void log_risk_event(const std::string& event_type, const std::string& details);\n    \n    // Risk calculation helpers\n    double calculate_concentration_risk(const std::string& symbol) const;\n    double calculate_volatility_risk(const std::string& symbol) const;\n    double calculate_correlation_risk(const std::string& symbol) const;
 };
 
 // gRPC service for risk manager
