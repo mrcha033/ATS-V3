@@ -1,0 +1,772 @@
+syntax = "proto3";
+
+package ats.trading_engine;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// Trading Engine Service
+service TradingEngineService {
+    // Service lifecycle
+    rpc StartEngine(StartEngineRequest) returns (StartEngineResponse);
+    rpc StopEngine(google.protobuf.Empty) returns (StopEngineResponse);
+    rpc GetEngineStatus(google.protobuf.Empty) returns (EngineStatusResponse);
+    
+    // Trading operations
+    rpc ExecuteArbitrage(ExecuteArbitrageRequest) returns (ExecuteArbitrageResponse);
+    rpc SubmitManualTrade(SubmitManualTradeRequest) returns (SubmitManualTradeResponse);
+    rpc CancelTrade(CancelTradeRequest) returns (CancelTradeResponse);
+    
+    // Order management
+    rpc GetActiveOrders(GetActiveOrdersRequest) returns (GetActiveOrdersResponse);
+    rpc GetOrderStatus(GetOrderStatusRequest) returns (GetOrderStatusResponse);
+    rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
+    
+    // Portfolio and balances
+    rpc GetPortfolio(google.protobuf.Empty) returns (GetPortfolioResponse);
+    rpc GetExchangeBalances(google.protobuf.Empty) returns (GetExchangeBalancesResponse);
+    rpc GetBalance(GetBalanceRequest) returns (GetBalanceResponse);
+    
+    // Trading statistics and monitoring
+    rpc GetTradingStatistics(google.protobuf.Empty) returns (GetTradingStatisticsResponse);
+    rpc GetPerformanceMetrics(GetPerformanceMetricsRequest) returns (GetPerformanceMetricsResponse);
+    rpc GetHealthStatus(google.protobuf.Empty) returns (GetHealthStatusResponse);
+    
+    // Configuration management
+    rpc UpdateConfiguration(UpdateConfigurationRequest) returns (UpdateConfigurationResponse);
+    rpc GetConfiguration(google.protobuf.Empty) returns (GetConfigurationResponse);
+    
+    // Risk management
+    rpc EmergencyStop(google.protobuf.Empty) returns (EmergencyStopResponse);
+    rpc GetRiskStatus(google.protobuf.Empty) returns (GetRiskStatusResponse);
+    
+    // Streaming APIs
+    rpc StreamTradeExecutions(google.protobuf.Empty) returns (stream TradeExecutionEvent);
+    rpc StreamArbitrageOpportunities(google.protobuf.Empty) returns (stream ArbitrageOpportunityEvent);
+    rpc StreamOrderUpdates(google.protobuf.Empty) returns (stream OrderUpdateEvent);
+    rpc StreamSystemEvents(google.protobuf.Empty) returns (stream SystemEvent);
+}
+
+// Spread Calculator Service
+service SpreadCalculatorService {
+    // Spread analysis
+    rpc AnalyzeSpread(AnalyzeSpreadRequest) returns (AnalyzeSpreadResponse);
+    rpc FindBestOpportunities(FindBestOpportunitiesRequest) returns (FindBestOpportunitiesResponse);
+    rpc DetectArbitrageOpportunities(DetectArbitrageOpportunitiesRequest) returns (DetectArbitrageOpportunitiesResponse);
+    
+    // Fee and slippage calculations
+    rpc CalculateTradingFee(CalculateTradingFeeRequest) returns (CalculateTradingFeeResponse);
+    rpc EstimateSlippage(EstimateSlippageRequest) returns (EstimateSlippageResponse);
+    rpc CalculateBreakevenSpread(CalculateBreakevenSpreadRequest) returns (CalculateBreakevenSpreadResponse);
+    
+    // Market data updates
+    rpc UpdateMarketDepth(UpdateMarketDepthRequest) returns (UpdateMarketDepthResponse);
+    rpc UpdateTicker(UpdateTickerRequest) returns (UpdateTickerResponse);
+    
+    // Configuration
+    rpc UpdateFeeStructures(UpdateFeeStructuresRequest) returns (UpdateFeeStructuresResponse);
+    rpc UpdateSlippageModels(UpdateSlippageModelsRequest) returns (UpdateSlippageModelsResponse);
+    
+    // Statistics
+    rpc GetSpreadStatistics(google.protobuf.Empty) returns (GetSpreadStatisticsResponse);
+}
+
+// Order Router Service
+service OrderRouterService {
+    // Order operations
+    rpc PlaceOrder(PlaceOrderRequest) returns (PlaceOrderResponse);
+    rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
+    rpc ModifyOrder(ModifyOrderRequest) returns (ModifyOrderResponse);
+    
+    // Simultaneous execution
+    rpc ExecuteArbitrageOrders(ExecuteArbitrageOrdersRequest) returns (ExecuteArbitrageOrdersResponse);
+    
+    // Order monitoring
+    rpc GetOrderStatus(GetOrderStatusRequest) returns (GetOrderStatusResponse);
+    rpc GetActiveOrders(GetActiveOrdersRequest) returns (GetActiveOrdersResponse);
+    
+    // Balance and portfolio
+    rpc GetAllBalances(google.protobuf.Empty) returns (GetAllBalancesResponse);
+    rpc GetExchangeBalance(GetExchangeBalanceRequest) returns (GetExchangeBalanceResponse);
+    
+    // Performance metrics
+    rpc GetPerformanceMetrics(google.protobuf.Empty) returns (OrderRouterPerformanceResponse);
+    rpc GetHealthStatus(google.protobuf.Empty) returns (OrderRouterHealthResponse);
+    
+    // Configuration
+    rpc UpdateConfiguration(UpdateOrderRouterConfigRequest) returns (UpdateOrderRouterConfigResponse);
+    rpc AddExchange(AddExchangeRequest) returns (AddExchangeResponse);
+    rpc RemoveExchange(RemoveExchangeRequest) returns (RemoveExchangeResponse);
+}
+
+// Common message types
+
+// Basic types
+message Currency {
+    string code = 1;
+    string name = 2;
+    int32 decimals = 3;
+}
+
+message Balance {
+    string currency = 1;
+    double total = 2;
+    double available = 3;
+    double locked = 4;
+    google.protobuf.Timestamp last_updated = 5;
+}
+
+message Ticker {
+    string symbol = 1;
+    string exchange = 2;
+    double bid = 3;
+    double ask = 4;
+    double last = 5;
+    double volume = 6;
+    double volume_quote = 7;
+    double high = 8;
+    double low = 9;
+    double open = 10;
+    double close = 11;
+    double change = 12;
+    double change_percent = 13;
+    google.protobuf.Timestamp timestamp = 14;
+}
+
+message Order {
+    string id = 1;
+    string symbol = 2;
+    string exchange = 3;
+    OrderSide side = 4;
+    OrderType type = 5;
+    double quantity = 6;
+    double price = 7;
+    double filled_quantity = 8;
+    double remaining_quantity = 9;
+    OrderStatus status = 10;
+    google.protobuf.Timestamp created_at = 11;
+    google.protobuf.Timestamp updated_at = 12;
+    string error_message = 13;
+}
+
+message Trade {
+    string id = 1;
+    string order_id = 2;
+    string symbol = 3;
+    string exchange = 4;
+    OrderSide side = 5;
+    double quantity = 6;
+    double price = 7;
+    double fee = 8;
+    google.protobuf.Timestamp timestamp = 9;
+}
+
+message ArbitrageOpportunity {
+    string symbol = 1;
+    string buy_exchange = 2;
+    string sell_exchange = 3;
+    double buy_price = 4;
+    double sell_price = 5;
+    double available_quantity = 6;
+    double spread_percentage = 7;
+    double expected_profit = 8;
+    double confidence_score = 9;
+    google.protobuf.Timestamp detected_at = 10;
+    int64 validity_window_ms = 11;
+    double max_position_size = 12;
+    double estimated_slippage = 13;
+    double total_fees = 14;
+    bool risk_approved = 15;
+}
+
+message TradeExecution {
+    string trade_id = 1;
+    string symbol = 2;
+    string buy_exchange = 3;
+    string sell_exchange = 4;
+    double buy_price = 5;
+    double sell_price = 6;
+    double quantity = 7;
+    double executed_quantity = 8;
+    double expected_profit = 9;
+    double actual_profit = 10;
+    double total_fees = 11;
+    ExecutionResult result = 12;
+    google.protobuf.Timestamp timestamp = 13;
+    int64 execution_latency_ms = 14;
+    repeated Order orders = 15;
+    string error_message = 16;
+}
+
+// Enums
+enum OrderSide {
+    ORDER_SIDE_UNSPECIFIED = 0;
+    ORDER_SIDE_BUY = 1;
+    ORDER_SIDE_SELL = 2;
+}
+
+enum OrderType {
+    ORDER_TYPE_UNSPECIFIED = 0;
+    ORDER_TYPE_MARKET = 1;
+    ORDER_TYPE_LIMIT = 2;
+    ORDER_TYPE_STOP = 3;
+    ORDER_TYPE_STOP_LIMIT = 4;
+}
+
+enum OrderStatus {
+    ORDER_STATUS_UNSPECIFIED = 0;
+    ORDER_STATUS_PENDING = 1;
+    ORDER_STATUS_SUBMITTED = 2;
+    ORDER_STATUS_PARTIALLY_FILLED = 3;
+    ORDER_STATUS_FILLED = 4;
+    ORDER_STATUS_CANCELED = 5;
+    ORDER_STATUS_REJECTED = 6;
+    ORDER_STATUS_EXPIRED = 7;
+    ORDER_STATUS_FAILED = 8;
+}
+
+enum ExecutionResult {
+    EXECUTION_RESULT_UNSPECIFIED = 0;
+    EXECUTION_RESULT_SUCCESS = 1;
+    EXECUTION_RESULT_PARTIAL_SUCCESS = 2;
+    EXECUTION_RESULT_FAILURE = 3;
+    EXECUTION_RESULT_TIMEOUT = 4;
+    EXECUTION_RESULT_INSUFFICIENT_BALANCE = 5;
+    EXECUTION_RESULT_MARKET_CLOSED = 6;
+    EXECUTION_RESULT_RISK_LIMIT_EXCEEDED = 7;
+    EXECUTION_RESULT_INVALID_ORDER = 8;
+}
+
+// Request/Response messages
+
+// Trading Engine Service
+message StartEngineRequest {
+    bool enable_paper_trading = 1;
+    bool enable_rollback_on_failure = 2;
+    double min_spread_threshold = 3;
+    int32 max_concurrent_trades = 4;
+}
+
+message StartEngineResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message StopEngineResponse {
+    bool success = 1;
+    string message = 2;
+    int32 active_trades_cancelled = 3;
+}
+
+message EngineStatusResponse {
+    bool running = 1;
+    bool emergency_stopped = 2;
+    bool healthy = 3;
+    int32 active_trades = 4;
+    int32 total_opportunities = 5;
+    int32 executed_trades = 6;
+    double success_rate = 7;
+    double total_profit_loss = 8;
+    int64 uptime_ms = 9;
+    repeated string health_issues = 10;
+}
+
+message ExecuteArbitrageRequest {
+    ArbitrageOpportunity opportunity = 1;
+    bool dry_run = 2;
+}
+
+message ExecuteArbitrageResponse {
+    bool success = 1;
+    string message = 2;
+    string trade_id = 3;
+    TradeExecution execution = 4;
+}
+
+message SubmitManualTradeRequest {
+    string symbol = 1;
+    string buy_exchange = 2;
+    string sell_exchange = 3;
+    double quantity = 4;
+}
+
+message SubmitManualTradeResponse {
+    bool success = 1;
+    string message = 2;
+    string trade_id = 3;
+}
+
+message CancelTradeRequest {
+    string trade_id = 1;
+}
+
+message CancelTradeResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message GetActiveOrdersRequest {
+    string exchange = 1; // Optional filter
+}
+
+message GetActiveOrdersResponse {
+    repeated Order orders = 1;
+}
+
+message GetOrderStatusRequest {
+    string exchange = 1;
+    string order_id = 2;
+}
+
+message GetOrderStatusResponse {
+    Order order = 1;
+    bool found = 2;
+}
+
+message CancelOrderRequest {
+    string exchange = 1;
+    string order_id = 2;
+}
+
+message CancelOrderResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message GetPortfolioResponse {
+    repeated Balance balances = 1;
+    double total_value_usd = 2;
+    double unrealized_pnl = 3;
+    double realized_pnl = 4;
+}
+
+message GetExchangeBalancesResponse {
+    map<string, BalanceList> exchange_balances = 1; // exchange_id -> balances
+}
+
+message BalanceList {
+    repeated Balance balances = 1;
+}
+
+message GetBalanceRequest {
+    string exchange = 1;
+    string currency = 2;
+}
+
+message GetBalanceResponse {
+    Balance balance = 1;
+    bool found = 2;
+}
+
+message GetTradingStatisticsResponse {
+    int64 total_opportunities_detected = 1;
+    int64 total_opportunities_executed = 2;
+    int64 total_successful_trades = 3;
+    int64 total_failed_trades = 4;
+    int64 total_rollbacks = 5;
+    double total_profit_loss = 6;
+    double total_fees_paid = 7;
+    double total_volume_traded = 8;
+    double success_rate = 9;
+    double average_profit_per_trade = 10;
+    int64 average_execution_time_ms = 11;
+    int64 fastest_execution_ms = 12;
+    int64 slowest_execution_ms = 13;
+    int64 uptime_ms = 14;
+}
+
+message GetPerformanceMetricsRequest {
+    int32 lookback_hours = 1; // Optional, defaults to 24
+}
+
+message GetPerformanceMetricsResponse {
+    double profit_per_hour = 1;
+    double trades_per_hour = 2;
+    double average_spread_captured = 3;
+    double sharpe_ratio = 4;
+    double max_drawdown = 5;
+    int64 total_execution_time_ms = 6;
+    map<string, double> symbol_performance = 7;
+    map<string, double> exchange_performance = 8;
+}
+
+message GetHealthStatusResponse {
+    bool overall_healthy = 1;
+    repeated HealthCheck health_checks = 2;
+}
+
+message HealthCheck {
+    string component = 1;
+    bool healthy = 2;
+    string status = 3;
+    repeated string issues = 4;
+    google.protobuf.Timestamp last_check = 5;
+}
+
+message UpdateConfigurationRequest {
+    TradingEngineConfiguration config = 1;
+}
+
+message UpdateConfigurationResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message GetConfigurationResponse {
+    TradingEngineConfiguration config = 1;
+}
+
+message TradingEngineConfiguration {
+    bool enabled = 1;
+    double min_spread_threshold = 2;
+    double max_position_size = 3;
+    double max_daily_volume = 4;
+    int32 max_concurrent_trades = 5;
+    int64 execution_timeout_ms = 6;
+    int64 opportunity_timeout_ms = 7;
+    double max_portfolio_exposure = 8;
+    double max_single_trade_size = 9;
+    double emergency_stop_loss = 10;
+    double slippage_tolerance = 11;
+    int32 worker_thread_count = 12;
+    int64 max_queue_size = 13;
+    bool enable_paper_trading = 14;
+    bool enable_rollback_on_failure = 15;
+}
+
+message EmergencyStopResponse {
+    bool success = 1;
+    string message = 2;
+    int32 trades_halted = 3;
+}
+
+message GetRiskStatusResponse {
+    bool within_limits = 1;
+    double current_exposure = 2;
+    double max_exposure = 3;
+    double current_daily_volume = 4;
+    double max_daily_volume = 5;
+    repeated string risk_warnings = 6;
+}
+
+// Streaming events
+message TradeExecutionEvent {
+    TradeExecution execution = 1;
+    google.protobuf.Timestamp event_time = 2;
+}
+
+message ArbitrageOpportunityEvent {
+    ArbitrageOpportunity opportunity = 1;
+    google.protobuf.Timestamp event_time = 2;
+}
+
+message OrderUpdateEvent {
+    Order order = 1;
+    string update_type = 2; // "created", "updated", "filled", "cancelled"
+    google.protobuf.Timestamp event_time = 3;
+}
+
+message SystemEvent {
+    string event_type = 1; // "error", "warning", "info", "emergency"
+    string component = 2;
+    string message = 3;
+    map<string, string> metadata = 4;
+    google.protobuf.Timestamp event_time = 5;
+}
+
+// Spread Calculator Service messages
+message AnalyzeSpreadRequest {
+    string symbol = 1;
+    string buy_exchange = 2;
+    string sell_exchange = 3;
+    double quantity = 4;
+}
+
+message AnalyzeSpreadResponse {
+    SpreadAnalysis analysis = 1;
+}
+
+message SpreadAnalysis {
+    string symbol = 1;
+    string buy_exchange = 2;
+    string sell_exchange = 3;
+    double raw_spread = 4;
+    double effective_spread = 5;
+    double spread_percentage = 6;
+    double breakeven_spread = 7;
+    double profit_margin = 8;
+    double confidence_score = 9;
+    bool is_profitable = 10;
+    string analysis_notes = 11;
+}
+
+message FindBestOpportunitiesRequest {
+    string symbol = 1;
+    double min_spread_threshold = 2;
+}
+
+message FindBestOpportunitiesResponse {
+    repeated SpreadAnalysis opportunities = 1;
+}
+
+message DetectArbitrageOpportunitiesRequest {
+    double min_profit_threshold = 1;
+}
+
+message DetectArbitrageOpportunitiesResponse {
+    repeated ArbitrageOpportunity opportunities = 1;
+}
+
+message CalculateTradingFeeRequest {
+    string exchange = 1;
+    string symbol = 2;
+    double quantity = 3;
+    double price = 4;
+    bool is_maker = 5;
+}
+
+message CalculateTradingFeeResponse {
+    double fee = 1;
+    double fee_rate = 2;
+}
+
+message EstimateSlippageRequest {
+    string exchange = 1;
+    string symbol = 2;
+    double quantity = 3;
+    OrderSide side = 4;
+}
+
+message EstimateSlippageResponse {
+    double slippage = 1;
+    double slippage_percentage = 2;
+}
+
+message CalculateBreakevenSpreadRequest {
+    string buy_exchange = 1;
+    string sell_exchange = 2;
+    string symbol = 3;
+    double quantity = 4;
+}
+
+message CalculateBreakevenSpreadResponse {
+    double breakeven_spread = 1;
+}
+
+message UpdateMarketDepthRequest {
+    MarketDepth depth = 1;
+}
+
+message UpdateMarketDepthResponse {
+    bool success = 1;
+}
+
+message MarketDepth {
+    string symbol = 1;
+    string exchange = 2;
+    repeated OrderBookLevel bids = 3;
+    repeated OrderBookLevel asks = 4;
+    google.protobuf.Timestamp timestamp = 5;
+}
+
+message OrderBookLevel {
+    double price = 1;
+    double quantity = 2;
+}
+
+message UpdateTickerRequest {
+    Ticker ticker = 1;
+}
+
+message UpdateTickerResponse {
+    bool success = 1;
+}
+
+message UpdateFeeStructuresRequest {
+    map<string, ExchangeFeeStructure> fee_structures = 1;
+}
+
+message UpdateFeeStructuresResponse {
+    bool success = 1;
+}
+
+message ExchangeFeeStructure {
+    string exchange_id = 1;
+    double maker_fee = 2;
+    double taker_fee = 3;
+    double withdrawal_fee = 4;
+    map<string, double> symbol_specific_fees = 5;
+    bool has_volume_tiers = 6;
+    repeated VolumeTier volume_tiers = 7;
+}
+
+message VolumeTier {
+    double volume_threshold = 1;
+    double fee_rate = 2;
+}
+
+message UpdateSlippageModelsRequest {
+    map<string, SlippageModel> slippage_models = 1;
+}
+
+message UpdateSlippageModelsResponse {
+    bool success = 1;
+}
+
+message SlippageModel {
+    string exchange_id = 1;
+    string symbol = 2;
+    double base_slippage = 3;
+    double liquidity_factor = 4;
+    double volatility_factor = 5;
+    double market_impact_coefficient = 6;
+    google.protobuf.Timestamp last_updated = 7;
+}
+
+message GetSpreadStatisticsResponse {
+    int64 opportunities_detected = 1;
+    int64 opportunities_executed = 2;
+    double average_profit_margin = 3;
+    map<string, double> exchange_spreads = 4;
+}
+
+// Order Router Service messages
+message PlaceOrderRequest {
+    Order order = 1;
+}
+
+message PlaceOrderResponse {
+    bool success = 1;
+    string order_id = 2;
+    string message = 3;
+}
+
+message ModifyOrderRequest {
+    string exchange = 1;
+    string order_id = 2;
+    double new_price = 3;
+    double new_quantity = 4;
+}
+
+message ModifyOrderResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message ExecuteArbitrageOrdersRequest {
+    ArbitrageOpportunity opportunity = 1;
+}
+
+message ExecuteArbitrageOrdersResponse {
+    SimultaneousExecutionResult result = 1;
+}
+
+message SimultaneousExecutionResult {
+    string trade_id = 1;
+    repeated OrderExecutionDetails order_executions = 2;
+    ExecutionResult overall_result = 3;
+    double total_filled_quantity = 4;
+    double average_execution_price_buy = 5;
+    double average_execution_price_sell = 6;
+    double actual_profit = 7;
+    double total_fees = 8;
+    int64 total_execution_time_ms = 9;
+    string error_message = 10;
+    bool requires_rollback = 11;
+}
+
+message OrderExecutionDetails {
+    string order_id = 1;
+    string exchange_order_id = 2;
+    Order original_order = 3;
+    OrderStatus status = 4;
+    double filled_quantity = 5;
+    double remaining_quantity = 6;
+    double average_fill_price = 7;
+    double total_fees = 8;
+    repeated Trade fills = 9;
+    string error_message = 10;
+    google.protobuf.Timestamp submitted_at = 11;
+    google.protobuf.Timestamp last_updated = 12;
+    int64 execution_latency_ms = 13;
+}
+
+message GetAllBalancesResponse {
+    map<string, BalanceList> exchange_balances = 1;
+}
+
+message GetExchangeBalanceRequest {
+    string exchange = 1;
+    string currency = 2;
+}
+
+message GetExchangeBalanceResponse {
+    Balance balance = 1;
+    bool found = 2;
+}
+
+message OrderRouterPerformanceResponse {
+    int64 total_orders_placed = 1;
+    int64 successful_orders = 2;
+    int64 failed_orders = 3;
+    int64 canceled_orders = 4;
+    double average_execution_time_ms = 5;
+    double success_rate = 6;
+    double average_slippage = 7;
+    double total_fees_paid = 8;
+}
+
+message OrderRouterHealthResponse {
+    bool healthy = 1;
+    repeated string health_issues = 2;
+    map<string, bool> exchange_statuses = 3;
+}
+
+message UpdateOrderRouterConfigRequest {
+    OrderRouterConfiguration config = 1;
+}
+
+message UpdateOrderRouterConfigResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message OrderRouterConfiguration {
+    int64 order_timeout_ms = 1;
+    int64 execution_timeout_ms = 2;
+    int32 max_retry_attempts = 3;
+    int64 retry_delay_ms = 4;
+    bool enable_partial_fills = 5;
+    bool enable_aggressive_fills = 6;
+    double max_slippage_tolerance = 7;
+    bool enable_pre_trade_validation = 8;
+    bool enable_post_trade_validation = 9;
+}
+
+message AddExchangeRequest {
+    string exchange_id = 1;
+    ExchangeConfiguration exchange_config = 2;
+}
+
+message AddExchangeResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message RemoveExchangeRequest {
+    string exchange_id = 1;
+}
+
+message RemoveExchangeResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message ExchangeConfiguration {
+    string exchange_id = 1;
+    string api_key = 2;
+    string secret_key = 3;
+    string base_url = 4;
+    bool sandbox_mode = 5;
+    map<string, string> additional_params = 6;
+}
