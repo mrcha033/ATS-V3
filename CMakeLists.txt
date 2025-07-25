@@ -20,6 +20,16 @@ find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system thread)
 
+# Qt6 for UI dashboard
+find_package(Qt6 QUIET COMPONENTS Core Quick QuickControls2 Widgets Charts Pdf)
+if(Qt6_FOUND)
+    set(BUILD_UI_DASHBOARD ON)
+    message(STATUS "Qt6 found - UI Dashboard will be built")
+else()
+    set(BUILD_UI_DASHBOARD OFF)
+    message(STATUS "Qt6 not found - UI Dashboard will be skipped")
+endif()
+
 # Include Conan
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup()
@@ -41,7 +51,11 @@ add_subdirectory(price_collector)
 add_subdirectory(trading_engine)
 add_subdirectory(risk_manager)
 add_subdirectory(backtest_analytics)
-add_subdirectory(ui_dashboard)
+
+# Add UI dashboard if Qt6 is available
+if(BUILD_UI_DASHBOARD)
+    add_subdirectory(ui_dashboard)
+endif()
 
 # Main executable
 add_executable(ats-v3

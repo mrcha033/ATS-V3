@@ -1,0 +1,47 @@
+FROM ubuntu:22.04 AS builder
+
+RUN apt-get update && apt-get install -y \
+    cmake \
+    build-essential \
+    libboost-all-dev \
+    libssl-dev \
+    libcurl4-openssl-dev \
+    nlohmann-json3-dev \
+    libhiredis-dev \
+    libspdlog-dev \
+    libprotobuf-dev \
+    protobuf-compiler \
+    grpc++ \
+    libgrpc++-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY . .
+
+RUN cmake -B build -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build build --parallel $(nproc)
+
+FROM ubuntu:22.04
+
+RUN apt-get update && apt-get install -y \
+    libboost-system1.74.0 \
+    libboost-filesystem1.74.0 \
+    libssl3 \
+    libcurl4 \
+    libhiredis0.14 \
+    libspdlog1 \
+    libprotobuf23 \
+    libgrpc++1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=builder /app/build/price_collector/price-collector /app/
+COPY config/settings.json.example /app/config/settings.json
+
+EXPOSE 50052
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8081/health || exit 1
+
+CMD ["./price-collector"]

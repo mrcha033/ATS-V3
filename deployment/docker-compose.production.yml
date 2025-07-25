@@ -1,0 +1,175 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - ats-network
+    restart: unless-stopped
+
+  influxdb:
+    image: influxdb:2.7
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=ats-password
+      - DOCKER_INFLUXDB_INIT_ORG=ats
+      - DOCKER_INFLUXDB_INIT_BUCKET=market-data
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    networks:
+      - ats-network
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - ats-network
+    restart: unless-stopped
+
+  price-collector:
+    image: ghcr.io/${GITHUB_REPOSITORY}-price-collector:${IMAGE_TAG}
+    ports:
+      - "50052:50052"
+      - "8081:8081"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - INFLUXDB_URL=http://influxdb:8086
+    depends_on:
+      - redis
+      - influxdb
+    networks:
+      - ats-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  trading-engine:
+    image: ghcr.io/${GITHUB_REPOSITORY}-trading-engine:${IMAGE_TAG}
+    ports:
+      - "50053:50053"
+      - "8082:8082"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - PRICE_COLLECTOR_URL=price-collector:50052
+    depends_on:
+      - redis
+      - price-collector
+    networks:
+      - ats-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  risk-manager:
+    image: ghcr.io/${GITHUB_REPOSITORY}-risk-manager:${IMAGE_TAG}
+    ports:
+      - "50054:50054"
+      - "8083:8083"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - TRADING_ENGINE_URL=trading-engine:50053
+    depends_on:
+      - redis
+      - trading-engine
+    networks:
+      - ats-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  backtest-analytics:
+    image: ghcr.io/${GITHUB_REPOSITORY}-backtest-analytics:${IMAGE_TAG}
+    ports:
+      - "50055:50055"
+      - "8084:8084"
+    environment:
+      - INFLUXDB_URL=http://influxdb:8086
+    depends_on:
+      - influxdb
+    networks:
+      - ats-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  ats-core:
+    image: ghcr.io/${GITHUB_REPOSITORY}-ats-core:${IMAGE_TAG}
+    ports:
+      - "50051:50051"
+      - "8080:8080"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - PRICE_COLLECTOR_URL=price-collector:50052
+      - TRADING_ENGINE_URL=trading-engine:50053
+      - RISK_MANAGER_URL=risk-manager:50054
+      - BACKTEST_ANALYTICS_URL=backtest-analytics:50055
+    depends_on:
+      - redis
+      - price-collector
+      - trading-engine
+      - risk-manager
+      - backtest-analytics
+    networks:
+      - ats-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+
+  ui-dashboard:
+    image: ghcr.io/${GITHUB_REPOSITORY}-ui-dashboard:${IMAGE_TAG}
+    ports:
+      - "8080:8080"
+    environment:
+      - ATS_CORE_URL=ats-core:50051
+    depends_on:
+      - ats-core
+    networks:
+      - ats-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+networks:
+  ats-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+  influxdb_data:
+  prometheus_data:

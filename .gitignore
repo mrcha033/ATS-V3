@@ -62,3 +62,4 @@ node_modules/
 .vooster/
 vooster-docs/
 CLAUDE.md
+.gemini/
