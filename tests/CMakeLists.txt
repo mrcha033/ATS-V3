@@ -8,6 +8,7 @@ find_package(GMock REQUIRED)
 # Include directories
 include_directories(
     ${CMAKE_SOURCE_DIR}/shared/include
+    ${CMAKE_SOURCE_DIR}/security/include
     ${CMAKE_SOURCE_DIR}/price_collector/include
     ${CMAKE_SOURCE_DIR}/trading_engine/include
     ${CMAKE_SOURCE_DIR}/risk_manager/include
@@ -46,6 +47,38 @@ endif()
 if(ENABLE_COVERAGE)
     target_compile_options(test_shared_utils PRIVATE --coverage)
     target_link_libraries(test_shared_utils PRIVATE --coverage)
+endif()
+
+# Security tests
+add_executable(test_security
+    test_security.cpp
+)
+
+target_link_libraries(test_security
+    PRIVATE
+        shared
+        security
+        GTest::gtest
+        GTest::gtest_main
+        GTest::gmock
+        GTest::gmock_main
+        OpenSSL::SSL
+        OpenSSL::Crypto
+        ${CONAN_LIBS}
+)
+
+# Add test to CTest
+add_test(NAME SecurityTest COMMAND test_security)
+
+# Set working directory for tests
+set_tests_properties(SecurityTest PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+# Coverage support for security tests
+if(ENABLE_COVERAGE)
+    target_compile_options(test_security PRIVATE --coverage)
+    target_link_libraries(test_security PRIVATE --coverage)
 endif()
 
 # Additional test targets will be added here for other modules

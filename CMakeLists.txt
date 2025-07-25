@@ -27,6 +27,7 @@ conan_basic_setup()
 # Include directories
 include_directories(
     ${CMAKE_SOURCE_DIR}/shared/include
+    ${CMAKE_SOURCE_DIR}/security/include
     ${CMAKE_SOURCE_DIR}/price_collector/include
     ${CMAKE_SOURCE_DIR}/trading_engine/include
     ${CMAKE_SOURCE_DIR}/risk_manager/include
@@ -35,10 +36,12 @@ include_directories(
 
 # Add subdirectories
 add_subdirectory(shared)
+add_subdirectory(security)
 add_subdirectory(price_collector)
 add_subdirectory(trading_engine)
 add_subdirectory(risk_manager)
 add_subdirectory(backtest_analytics)
+add_subdirectory(ui_dashboard)
 
 # Main executable
 add_executable(ats-v3
@@ -48,6 +51,7 @@ add_executable(ats-v3
 # Link libraries
 target_link_libraries(ats-v3
     shared
+    security
     price_collector
     trading_engine
     risk_manager
