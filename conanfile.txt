@@ -14,11 +14,11 @@ prometheus-cpp/1.1.0
 cmake
 
 [options]
-boost:shared=False
-openssl:shared=False
-curl:shared=False
-gtest:shared=False
-rocksdb:shared=False
+boost/*:shared=False
+openssl/*:shared=False
+curl/*:shared=False
+gtest/*:shared=False
+rocksdb/*:shared=False
 
 [imports]
 bin, *.dll -> ./bin
