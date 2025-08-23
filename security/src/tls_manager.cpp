@@ -1,5 +1,5 @@
-#include "../include/tls_manager.hpp"
-#include "../../utils/logger.hpp"
+#include "tls_manager.hpp"
+#include "utils/logger.hpp"
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -16,7 +16,7 @@ namespace security {
 
 // TlsManager Implementation
 TlsManager::TlsManager() : ssl_initialized_(false) {
-    LOG_INFO("TlsManager initialized");
+    utils::Logger::info("TlsManager initialized");
 }
 
 TlsManager::~TlsManager() {
@@ -64,11 +64,11 @@ bool TlsManager::initialize(const std::string& cert_storage_path) {
         secure_profile.max_protocol_version = TLS1_3_VERSION;
         configure_tls_profile("secure", secure_profile);
         
-        LOG_INFO("TlsManager initialized with certificate storage: {}", cert_storage_path_);
+        utils::Logger::info("TlsManager initialized with certificate storage: {}", cert_storage_path_);
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to initialize TlsManager: {}", e.what());
+        utils::Logger::error("Failed to initialize TlsManager: {}", e.what());
         return false;
     }
 }
@@ -83,7 +83,7 @@ void TlsManager::shutdown() {
         ssl_initialized_ = false;
     }
     
-    LOG_INFO("TlsManager shutdown completed");
+    utils::Logger::info("TlsManager shutdown completed");
 }
 
 TlsManager::CertificateInfo TlsManager::generate_self_signed_certificate(const CertificateRequest& request) {
@@ -93,7 +93,7 @@ TlsManager::CertificateInfo TlsManager::generate_self_signed_certificate(const C
         // Generate private key
         EVP_PKEY* private_key = generate_rsa_key(request.key_size);
         if (!private_key) {
-            LOG_ERROR("Failed to generate private key");
+            utils::Logger::error("Failed to generate private key");
             return cert_info;
         }
         
@@ -101,7 +101,7 @@ TlsManager::CertificateInfo TlsManager::generate_self_signed_certificate(const C
         X509* cert = X509_new();
         if (!cert) {
             EVP_PKEY_free(private_key);
-            LOG_ERROR("Failed to create X509 certificate");
+            utils::Logger::error("Failed to create X509 certificate");
             return cert_info;
         }
         
@@ -138,7 +138,7 @@ TlsManager::CertificateInfo TlsManager::generate_self_signed_certificate(const C
         
         // Add extensions
         if (!add_certificate_extensions(cert, cert, request)) {
-            LOG_WARNING("Failed to add some certificate extensions");
+            utils::Logger::warn("Failed to add some certificate extensions");
         }
         
         // Sign the certificate
@@ -191,10 +191,10 @@ TlsManager::CertificateInfo TlsManager::generate_self_signed_certificate(const C
         X509_free(cert);
         EVP_PKEY_free(private_key);
         
-        LOG_INFO("Generated self-signed certificate for {}", request.common_name);
+        utils::Logger::info("Generated self-signed certificate for {}", request.common_name);
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to generate self-signed certificate: {}", e.what());
+        utils::Logger::error("Failed to generate self-signed certificate: {}", e.what());
     }
     
     return cert_info;
@@ -210,12 +210,12 @@ bool TlsManager::save_certificate(const std::string& cert_id, const CertificateI
         std::string key_file = cert_storage_path_ + cert_id + ".key";
         
         if (!save_pem_to_file(cert_file, cert_info.cert_pem)) {
-            LOG_ERROR("Failed to save certificate file: {}", cert_file);
+            utils::Logger::error("Failed to save certificate file: {}", cert_file);
             return false;
         }
         
         if (!save_pem_to_file(key_file, cert_info.private_key_pem)) {
-            LOG_ERROR("Failed to save private key file: {}", key_file);
+            utils::Logger::error("Failed to save private key file: {}", key_file);
             return false;
         }
         
@@ -223,11 +223,11 @@ bool TlsManager::save_certificate(const std::string& cert_id, const CertificateI
         std::filesystem::permissions(cert_file, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write);
         std::filesystem::permissions(key_file, std::filesystem::perms::owner_read);
         
-        LOG_INFO("Saved certificate: {}", cert_id);
+        utils::Logger::info("Saved certificate: {}", cert_id);
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to save certificate {}: {}", cert_id, e.what());
+        utils::Logger::error("Failed to save certificate {}: {}", cert_id, e.what());
         return false;
     }
 }
@@ -250,7 +250,7 @@ TlsManager::CertificateInfo TlsManager::get_certificate(const std::string& cert_
         if (!cert_info.cert_pem.empty() && !cert_info.private_key_pem.empty()) {
             cert_info.is_valid = true;
             certificates_[cert_id] = cert_info;
-            LOG_DEBUG("Loaded certificate from file: {}", cert_id);
+            utils::Logger::debug("Loaded certificate from file: {}", cert_id);
         }
     }
     
@@ -263,7 +263,7 @@ std::shared_ptr<grpc::ServerCredentials> TlsManager::create_grpc_server_credenti
     try {
         auto cert_info = get_certificate(cert_id);
         if (!cert_info.is_valid) {
-            LOG_ERROR("Certificate not found or invalid: {}", cert_id);
+            utils::Logger::error("Certificate not found or invalid: {}", cert_id);
             return nullptr;
         }
         
@@ -284,11 +284,11 @@ std::shared_ptr<grpc::ServerCredentials> TlsManager::create_grpc_server_credenti
         
         auto server_creds = grpc::SslServerCredentials(ssl_options);
         
-        LOG_DEBUG("Created gRPC server credentials for certificate: {}", cert_id);
+        utils::Logger::debug("Created gRPC server credentials for certificate: {}", cert_id);
         return server_creds;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to create gRPC server credentials: {}", e.what());
+        utils::Logger::error("Failed to create gRPC server credentials: {}", e.what());
         return nullptr;
     }
 }
@@ -316,11 +316,11 @@ std::shared_ptr<grpc::ChannelCredentials> TlsManager::create_grpc_client_credent
         
         auto client_creds = grpc::SslCredentials(ssl_options);
         
-        LOG_DEBUG("Created gRPC client credentials");
+        utils::Logger::debug("Created gRPC client credentials");
         return client_creds;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to create gRPC client credentials: {}", e.what());
+        utils::Logger::error("Failed to create gRPC client credentials: {}", e.what());
         return nullptr;
     }
 }
@@ -348,7 +348,7 @@ SSL_CTX* TlsManager::create_ssl_context(const std::string& cert_id, bool is_serv
         if (!cert_id.empty()) {
             auto cert_info = get_certificate(cert_id);
             if (!cert_info.is_valid) {
-                LOG_ERROR("Certificate not found: {}", cert_id);
+                utils::Logger::error("Certificate not found: {}", cert_id);
                 SSL_CTX_free(ctx);
                 return nullptr;
             }
@@ -387,11 +387,11 @@ SSL_CTX* TlsManager::create_ssl_context(const std::string& cert_id, bool is_serv
             }
         }
         
-        LOG_DEBUG("Created SSL context for certificate: {}", cert_id);
+        utils::Logger::debug("Created SSL context for certificate: {}", cert_id);
         return ctx;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to create SSL context: {}", e.what());
+        utils::Logger::error("Failed to create SSL context: {}", e.what());
         return nullptr;
     }
 }
@@ -428,10 +428,10 @@ void TlsManager::configure_ssl_context(SSL_CTX* ctx, bool require_client_cert) {
             SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, nullptr);
         }
         
-        LOG_DEBUG("Configured SSL context with security settings");
+        utils::Logger::debug("Configured SSL context with security settings");
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to configure SSL context: {}", e.what());
+        utils::Logger::error("Failed to configure SSL context: {}", e.what());
     }
 }
 
@@ -456,7 +456,7 @@ bool TlsManager::enable_perfect_forward_secrecy(SSL_CTX* ctx) {
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to enable perfect forward secrecy: {}", e.what());
+        utils::Logger::error("Failed to enable perfect forward secrecy: {}", e.what());
         return false;
     }
 }
@@ -477,7 +477,7 @@ void TlsManager::initialize_openssl() {
         OpenSSL_add_all_algorithms();
         RAND_poll();
         ssl_initialized_ = true;
-        LOG_DEBUG("OpenSSL initialized");
+        utils::Logger::debug("OpenSSL initialized");
     }
 }
 
@@ -486,7 +486,7 @@ void TlsManager::cleanup_openssl() {
         EVP_cleanup();
         CRYPTO_cleanup_all_ex_data();
         ERR_free_strings();
-        LOG_DEBUG("OpenSSL cleanup completed");
+        utils::Logger::debug("OpenSSL cleanup completed");
     }
 }
 

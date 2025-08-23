@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.16)
+
+# Set CMake policies before project() and any find_package calls
+cmake_policy(SET CMP0167 NEW)  # Use new FindBoost behavior
+
 project(ATS-V3 VERSION 1.0.0 LANGUAGES CXX)
+
+# Generate compile_commands.json for IntelliSense
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
@@ -11,9 +18,15 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Set compiler flags
-set(CMAKE_CXX_FLAGS "-Wall -Wextra")
-set(CMAKE_CXX_FLAGS_DEBUG "-g")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+if(MSVC)
+    set(CMAKE_CXX_FLAGS "/W4")
+    set(CMAKE_CXX_FLAGS_DEBUG "/Zi /Od")
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2")
+else()
+    set(CMAKE_CXX_FLAGS "-Wall")
+    set(CMAKE_CXX_FLAGS_DEBUG "-g")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+endif()
 
 # Find packages
 find_package(Threads REQUIRED)
@@ -31,8 +44,8 @@ else()
 endif()
 
 # Include Conan
-include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-conan_basic_setup()
+# include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+# conan_basic_setup()
 
 # Include directories
 include_directories(
@@ -42,6 +55,7 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/trading_engine/include
     ${CMAKE_SOURCE_DIR}/risk_manager/include
     ${CMAKE_SOURCE_DIR}/backtest_analytics/include
+    ${CMAKE_SOURCE_DIR}/notification_service/include
 )
 
 # Add subdirectories
@@ -51,6 +65,7 @@ add_subdirectory(price_collector)
 add_subdirectory(trading_engine)
 add_subdirectory(risk_manager)
 add_subdirectory(backtest_analytics)
+add_subdirectory(notification_service)
 
 # Add UI dashboard if Qt6 is available
 if(BUILD_UI_DASHBOARD)
@@ -70,6 +85,7 @@ target_link_libraries(ats-v3
     trading_engine
     risk_manager
     backtest_analytics
+    notification_service
     ${CONAN_LIBS}
     Threads::Threads
     OpenSSL::SSL

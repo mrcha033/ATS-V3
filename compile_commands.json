@@ -1,0 +1,12 @@
+[
+    {
+        "directory": "C:/Projects/ATS-V3",
+        "command": "g++ -std=c++17 -I./risk_manager/include -I./shared/include -I./trading_engine/include -I./security/include -I./src -I./src/core -c ./risk_manager/src/enhanced_risk_manager.cpp",
+        "file": "C:/Projects/ATS-V3/risk_manager/src/enhanced_risk_manager.cpp"
+    },
+    {
+        "directory": "C:/Projects/ATS-V3",
+        "command": "g++ -std=c++17 -I./risk_manager/include -I./shared/include -I./trading_engine/include -I./security/include -I./src -I./src/core -c ./risk_manager/src/risk_manager_grpc_service.cpp",
+        "file": "C:/Projects/ATS-V3/risk_manager/src/risk_manager_grpc_service.cpp"
+    }
+]

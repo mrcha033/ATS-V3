@@ -2,6 +2,7 @@
 
 #include "types/common_types.hpp"
 #include "config/config_manager.hpp"
+#include "utils/prometheus_exporter.hpp"
 #include <memory>
 #include <vector>
 #include <unordered_map>
@@ -224,6 +225,7 @@ private:
     std::unique_ptr<SpreadCalculator> spread_calculator_;
     std::unique_ptr<TradeLogger> trade_logger_;
     std::shared_ptr<RiskManager> risk_manager_;
+    std::unique_ptr<monitoring::PrometheusExporter> prometheus_exporter_;
     
     // Threading and queuing
     std::vector<std::thread> worker_threads_;
@@ -272,6 +274,9 @@ private:
     
     // Utility methods
     void update_statistics();
+    void collect_system_metrics();
+    double get_cpu_usage();
+    double get_memory_usage();
     void cleanup_completed_trades();
     void log_trade_execution(const TradeExecution& execution);
     void handle_error(const std::string& error_message);

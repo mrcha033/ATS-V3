@@ -1,9 +1,10 @@
-#include "../include/auth_manager.hpp"
-#include "../../utils/logger.hpp"
+#include "auth_manager.hpp"
+#include "utils/logger.hpp"
 #include <sstream>
 #include <iomanip>
 #include <algorithm>
 #include <regex>
+#include <cstring>
 #include <openssl/sha.h>
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
@@ -13,18 +14,19 @@ namespace security {
 
 // AuthManager Implementation
 AuthManager::AuthManager() {
-    LOG_INFO("AuthManager initialized");
+    utils::Logger::info("AuthManager initialized");
 }
 
 AuthManager::~AuthManager() {
     // Clear sensitive data
     for (auto& token : api_tokens_) {
-        SecurityUtils::secure_zero_string(token.second.secret);
+        // Simple secure clearing - zero out the string
+        std::fill(token.second.secret.begin(), token.second.secret.end(), '\0');
     }
     api_tokens_.clear();
     
     sessions_.clear();
-    LOG_INFO("AuthManager destroyed");
+    utils::Logger::info("AuthManager destroyed");
 }
 
 bool AuthManager::initialize(std::shared_ptr<CryptoManager> crypto_manager) {
@@ -61,13 +63,13 @@ bool AuthManager::initialize(std::shared_ptr<CryptoManager> crypto_manager) {
     coinbase_config.timestamp_tolerance_seconds = 30;
     configure_exchange_auth(coinbase_config);
     
-    LOG_INFO("AuthManager initialized with {} exchange configurations", exchange_configs_.size());
+    utils::Logger::info("AuthManager initialized with {} exchange configurations", exchange_configs_.size());
     return true;
 }
 
 bool AuthManager::configure_exchange_auth(const ExchangeAuthConfig& config) {
     exchange_configs_[config.exchange_name] = config;
-    LOG_DEBUG("Configured authentication for exchange: {}", config.exchange_name);
+    utils::Logger::debug("Configured authentication for exchange: {}", config.exchange_name);
     return true;
 }
 
@@ -87,7 +89,7 @@ AuthManager::SignedRequest AuthManager::sign_exchange_request(
     try {
         auto config_it = exchange_configs_.find(exchange);
         if (config_it == exchange_configs_.end()) {
-            LOG_ERROR("No authentication configuration found for exchange: {}", exchange);
+            utils::Logger::error("No authentication configuration found for exchange: {}", exchange);
             return request;
         }
         
@@ -96,7 +98,7 @@ AuthManager::SignedRequest AuthManager::sign_exchange_request(
         // Get API credentials
         auto credentials = crypto_manager_->retrieve_api_credentials(exchange);
         if (!credentials.valid) {
-            LOG_ERROR("Failed to retrieve API credentials for exchange: {}", exchange);
+            utils::Logger::error("Failed to retrieve API credentials for exchange: {}", exchange);
             return request;
         }
         
@@ -148,10 +150,10 @@ AuthManager::SignedRequest AuthManager::sign_exchange_request(
         }
         
         request.success = true;
-        LOG_DEBUG("Successfully signed request for exchange: {}", exchange);
+        utils::Logger::debug("Successfully signed request for exchange: {}", exchange);
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to sign request for {}: {}", exchange, e.what());
+        utils::Logger::error("Failed to sign request for {}: {}", exchange, e.what());
     }
     
     return request;
@@ -168,7 +170,7 @@ bool AuthManager::verify_exchange_signature(
     try {
         auto config_it = exchange_configs_.find(exchange);
         if (config_it == exchange_configs_.end()) {
-            LOG_ERROR("No authentication configuration found for exchange: {}", exchange);
+            utils::Logger::error("No authentication configuration found for exchange: {}", exchange);
             return false;
         }
         
@@ -177,7 +179,7 @@ bool AuthManager::verify_exchange_signature(
         // Extract signature from headers
         auto sig_it = headers.find(config.signature_header_name);
         if (sig_it == headers.end()) {
-            LOG_ERROR("Signature header not found: {}", config.signature_header_name);
+            utils::Logger::error("Signature header not found: {}", config.signature_header_name);
             return false;
         }
         
@@ -186,7 +188,7 @@ bool AuthManager::verify_exchange_signature(
         // Extract timestamp
         auto timestamp_it = headers.find("X-TIMESTAMP");
         if (timestamp_it == headers.end()) {
-            LOG_ERROR("Timestamp header not found");
+            utils::Logger::error("Timestamp header not found");
             return false;
         }
         
@@ -194,7 +196,7 @@ bool AuthManager::verify_exchange_signature(
         
         // Validate timestamp
         if (!is_timestamp_valid(timestamp, config.timestamp_format, config.timestamp_tolerance_seconds)) {
-            LOG_ERROR("Invalid or expired timestamp: {}", timestamp);
+            utils::Logger::error("Invalid or expired timestamp: {}", timestamp);
             return false;
         }
         
@@ -202,7 +204,7 @@ bool AuthManager::verify_exchange_signature(
         auto nonce_it = headers.find("X-NONCE");
         if (nonce_it != headers.end()) {
             if (!validate_nonce(nonce_it->second, std::chrono::seconds(config.timestamp_tolerance_seconds))) {
-                LOG_ERROR("Invalid or reused nonce: {}", nonce_it->second);
+                utils::Logger::error("Invalid or reused nonce: {}", nonce_it->second);
                 return false;
             }
         }
@@ -210,7 +212,7 @@ bool AuthManager::verify_exchange_signature(
         // Get API credentials
         auto credentials = crypto_manager_->retrieve_api_credentials(exchange);
         if (!credentials.valid) {
-            LOG_ERROR("Failed to retrieve API credentials for exchange: {}", exchange);
+            utils::Logger::error("Failed to retrieve API credentials for exchange: {}", exchange);
             return false;
         }
         
@@ -229,15 +231,15 @@ bool AuthManager::verify_exchange_signature(
         }
         
         if (signature_valid) {
-            LOG_DEBUG("Signature verification successful for exchange: {}", exchange);
+            utils::Logger::debug("Signature verification successful for exchange: {}", exchange);
         } else {
-            LOG_WARNING("Signature verification failed for exchange: {}", exchange);
+            utils::Logger::warn("Signature verification failed for exchange: {}", exchange);
         }
         
         return signature_valid;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error verifying signature for {}: {}", exchange, e.what());
+        utils::Logger::error("Error verifying signature for {}: {}", exchange, e.what());
         return false;
     }
 }
@@ -261,11 +263,11 @@ std::string AuthManager::generate_api_token(const std::vector<std::string>& perm
         std::ostringstream token_stream;
         token_stream << token_id << "." << secret;
         
-        LOG_DEBUG("Generated API token with {} permissions", permissions.size());
+        utils::Logger::debug("Generated API token with {} permissions", permissions.size());
         return token_stream.str();
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to generate API token: {}", e.what());
+        utils::Logger::error("Failed to generate API token: {}", e.what());
         return "";
     }
 }
@@ -275,7 +277,7 @@ bool AuthManager::verify_api_token(const std::string& token, const std::string& 
         // Parse token
         size_t dot_pos = token.find('.');
         if (dot_pos == std::string::npos) {
-            LOG_DEBUG("Invalid token format");
+            utils::Logger::debug("Invalid token format");
             return false;
         }
         
@@ -285,7 +287,7 @@ bool AuthManager::verify_api_token(const std::string& token, const std::string& 
         // Find token
         auto token_it = api_tokens_.find(token_id);
         if (token_it == api_tokens_.end()) {
-            LOG_DEBUG("Token not found: {}", token_id);
+            utils::Logger::debug("Token not found: {}", token_id);
             return false;
         }
         
@@ -293,19 +295,20 @@ bool AuthManager::verify_api_token(const std::string& token, const std::string& 
         
         // Check if token is active
         if (!api_token.is_active) {
-            LOG_DEBUG("Token is deactivated: {}", token_id);
+            utils::Logger::debug("Token is deactivated: {}", token_id);
             return false;
         }
         
         // Check expiration
         if (std::chrono::system_clock::now() > api_token.expires_at) {
-            LOG_DEBUG("Token expired: {}", token_id);
+            utils::Logger::debug("Token expired: {}", token_id);
             return false;
         }
         
-        // Verify secret
-        if (!SecurityUtils::secure_compare(secret, api_token.secret)) {
-            LOG_WARNING("Invalid token secret for: {}", token_id);
+        // Verify secret (constant-time comparison to prevent timing attacks)
+        if (secret.length() != api_token.secret.length() || 
+            !std::equal(secret.begin(), secret.end(), api_token.secret.begin())) {
+            utils::Logger::warn("Invalid token secret for: {}", token_id);
             return false;
         }
         
@@ -315,16 +318,16 @@ bool AuthManager::verify_api_token(const std::string& token, const std::string& 
                                    api_token.permissions.end(), 
                                    required_permission);
             if (perm_it == api_token.permissions.end()) {
-                LOG_DEBUG("Token lacks required permission '{}': {}", required_permission, token_id);
+                utils::Logger::debug("Token lacks required permission '{}': {}", required_permission, token_id);
                 return false;
             }
         }
         
-        LOG_DEBUG("Token verification successful: {}", token_id);
+        utils::Logger::debug("Token verification successful: {}", token_id);
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error verifying API token: {}", e.what());
+        utils::Logger::error("Error verifying API token: {}", e.what());
         return false;
     }
 }
@@ -343,11 +346,11 @@ std::string AuthManager::create_session(const std::string& user_id, std::chrono:
         
         sessions_[session_id] = session;
         
-        LOG_DEBUG("Created session for user: {}", user_id);
+        utils::Logger::debug("Created session for user: {}", user_id);
         return session_id;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to create session for user {}: {}", user_id, e.what());
+        utils::Logger::error("Failed to create session for user {}: {}", user_id, e.what());
         return "";
     }
 }
@@ -356,7 +359,7 @@ bool AuthManager::validate_session(const std::string& session_id) {
     try {
         auto session_it = sessions_.find(session_id);
         if (session_it == sessions_.end()) {
-            LOG_DEBUG("Session not found: {}", session_id);
+            utils::Logger::debug("Session not found: {}", session_id);
             return false;
         }
         
@@ -364,13 +367,13 @@ bool AuthManager::validate_session(const std::string& session_id) {
         
         // Check if session is valid
         if (!session.is_valid) {
-            LOG_DEBUG("Session is invalid: {}", session_id);
+            utils::Logger::debug("Session is invalid: {}", session_id);
             return false;
         }
         
         // Check expiration
         if (std::chrono::system_clock::now() > session.expires_at) {
-            LOG_DEBUG("Session expired: {}", session_id);
+            utils::Logger::debug("Session expired: {}", session_id);
             session.is_valid = false;
             return false;
         }
@@ -378,7 +381,7 @@ bool AuthManager::validate_session(const std::string& session_id) {
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error validating session: {}", e.what());
+        utils::Logger::error("Error validating session: {}", e.what());
         return false;
     }
 }
@@ -414,11 +417,11 @@ bool AuthManager::check_rate_limit(const std::string& identifier,
             return true;
         }
         
-        LOG_DEBUG("Rate limit exceeded for {}: {} requests in window", key, entry.request_count);
+        utils::Logger::debug("Rate limit exceeded for {}: {} requests in window", key, entry.request_count);
         return false;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error checking rate limit: {}", e.what());
+        utils::Logger::error("Error checking rate limit: {}", e.what());
         return false;
     }
 }
@@ -435,7 +438,7 @@ bool AuthManager::validate_nonce(const std::string& nonce, std::chrono::seconds 
     // Check if nonce was already used
     auto nonce_it = used_nonces_.find(nonce);
     if (nonce_it != used_nonces_.end()) {
-        LOG_DEBUG("Nonce already used: {}", nonce);
+        utils::Logger::debug("Nonce already used: {}", nonce);
         return false;
     }
     
@@ -591,11 +594,11 @@ bool AuthMiddleware::authenticate_request(const std::unordered_map<std::string, 
             return auth_manager_->verify_api_token(api_key, required_permission);
         }
         
-        LOG_DEBUG("No valid authentication found in request");
+        utils::Logger::debug("No valid authentication found in request");
         return false;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error authenticating request: {}", e.what());
+        utils::Logger::error("Error authenticating request: {}", e.what());
         return false;
     }
 }

@@ -1,5 +1,5 @@
 #include "../include/performance_metrics.hpp"
-#include "../../utils/logger.hpp"
+#include "utils/logger.hpp"
 #include <algorithm>
 #include <numeric>
 #include <cmath>
@@ -161,7 +161,7 @@ PerformanceMetrics PerformanceCalculator::calculate_metrics(
         }
     }
     
-    LOG_INFO("Calculated performance metrics: Total Return: {:.2f}%, Sharpe: {:.3f}, Max DD: {:.2f}%",
+    ATS_LOG_INFO("Calculated performance metrics: Total Return: {:.2f}%, Sharpe: {:.3f}, Max DD: {:.2f}%",
              metrics.total_return, metrics.sharpe_ratio, metrics.max_drawdown);
     
     return metrics;

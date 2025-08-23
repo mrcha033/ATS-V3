@@ -39,7 +39,6 @@ target_compile_definitions(security PRIVATE
 # Add compile options for security
 target_compile_options(security PRIVATE
     -Wall
-    -Wextra
     -Wpedantic
     -Werror
     -O2

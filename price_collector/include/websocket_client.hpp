@@ -5,6 +5,7 @@
 #include <boost/beast/ssl.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/asio/steady_timer.hpp>
+#include <nlohmann/json.hpp>
 #include <memory>
 #include <string>
 #include <functional>
@@ -13,6 +14,7 @@
 #include <queue>
 #include <mutex>
 #include <thread>
+#include <unordered_map>
 
 namespace ats {
 namespace price_collector {

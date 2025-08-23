@@ -1,13 +1,13 @@
 #include "../include/enhanced_risk_manager.hpp"
-#include "../../utils/logger.hpp"
-#include <grpcpp/grpcpp.h>
+#include "utils/logger.hpp"
+#include "trading_engine_mock.hpp"
 
 namespace ats {
 namespace risk_manager {
 
 // RiskManagerGrpcService Implementation
 RiskManagerGrpcService::RiskManagerGrpcService() {
-    LOG_INFO("Risk Manager gRPC Service initialized");
+    utils::Logger::info("Risk Manager gRPC Service initialized");
 }
 
 RiskManagerGrpcService::~RiskManagerGrpcService() {
@@ -18,12 +18,12 @@ RiskManagerGrpcService::~RiskManagerGrpcService() {
             pair.second->join();
         }
     }
-    LOG_INFO("Risk Manager gRPC Service destroyed");
+    utils::Logger::info("Risk Manager gRPC Service destroyed");
 }
 
 bool RiskManagerGrpcService::initialize(std::shared_ptr<EnhancedRiskManager> risk_manager) {
     risk_manager_ = risk_manager;
-    LOG_INFO("Risk Manager gRPC Service initialized with enhanced risk manager");
+    utils::Logger::info("Risk Manager gRPC Service initialized with enhanced risk manager");
     return true;
 }
 
@@ -52,11 +52,11 @@ grpc::Status RiskManagerGrpcService::GetRiskStatus(
             response->add_risk_warnings(violation);
         }
         
-        LOG_DEBUG("Risk status retrieved successfully");
+        utils::Logger::debug("Risk status retrieved successfully");
         return grpc::Status::OK;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error getting risk status: {}", e.what());
+        utils::Logger::error("Error getting risk status: {}", e.what());
         return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to get risk status");
     }
 }
@@ -78,11 +78,11 @@ grpc::Status RiskManagerGrpcService::GetPositions(
             convert_to_proto(position, proto_position);
         }
         
-        LOG_DEBUG("Retrieved {} positions", positions.size());
+        utils::Logger::debug("Retrieved {} positions", positions.size());
         return grpc::Status::OK;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error getting positions: {}", e.what());
+        utils::Logger::error("Error getting positions: {}", e.what());
         return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to get positions");
     }
 }
@@ -107,11 +107,11 @@ grpc::Status RiskManagerGrpcService::GetPnL(
         response->set_unrealized_pnl(0.0);
         response->set_realized_pnl(risk_manager_->get_realtime_pnl());
         
-        LOG_DEBUG("P&L retrieved successfully");
+        utils::Logger::debug("P&L retrieved successfully");
         return grpc::Status::OK;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error getting P&L: {}", e.what());
+        utils::Logger::error("Error getting P&L: {}", e.what());
         return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to get P&L");
     }
 }
@@ -134,11 +134,11 @@ grpc::Status RiskManagerGrpcService::GetRiskAlerts(
             convert_to_proto(alert, proto_alert);
         }
         
-        LOG_DEBUG("Retrieved {} risk alerts", alerts.size());
+        utils::Logger::debug("Retrieved {} risk alerts", alerts.size());
         return grpc::Status::OK;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error getting risk alerts: {}", e.what());
+        utils::Logger::error("Error getting risk alerts: {}", e.what());
         return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to get risk alerts");
     }
 }
@@ -157,11 +157,11 @@ grpc::Status RiskManagerGrpcService::AcknowledgeAlert(
         response->set_success(true);
         response->set_message("Alert acknowledged successfully");
         
-        LOG_DEBUG("Alert {} acknowledged", request->alert_id());
+        utils::Logger::debug("Alert {} acknowledged", request->alert_id());
         return grpc::Status::OK;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error acknowledging alert: {}", e.what());
+        utils::Logger::error("Error acknowledging alert: {}", e.what());
         response->set_success(false);
         response->set_message("Failed to acknowledge alert");
         return grpc::Status::OK; // Return OK with error in response
@@ -185,11 +185,11 @@ grpc::Status RiskManagerGrpcService::EmergencyHalt(
         response->set_message("Emergency halt activated");
         response->set_halt_reason(reason);
         
-        LOG_CRITICAL("Emergency halt triggered via gRPC: {}", reason);
+        utils::Logger::error("Emergency halt triggered via gRPC: {}", reason);
         return grpc::Status::OK;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error triggering emergency halt: {}", e.what());
+        utils::Logger::error("Error triggering emergency halt: {}", e.what());
         response->set_success(false);
         response->set_message("Failed to trigger emergency halt");
         return grpc::Status::OK; // Return OK with error in response
@@ -211,11 +211,11 @@ grpc::Status RiskManagerGrpcService::ResumeTrading(
         response->set_success(true);
         response->set_message("Trading resumed successfully");
         
-        LOG_INFO("Trading resumed via gRPC");
+        utils::Logger::info("Trading resumed via gRPC");
         return grpc::Status::OK;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error resuming trading: {}", e.what());
+        utils::Logger::error("Error resuming trading: {}", e.what());
         response->set_success(false);
         response->set_message("Failed to resume trading");
         return grpc::Status::OK; // Return OK with error in response
@@ -238,11 +238,11 @@ grpc::Status RiskManagerGrpcService::UpdateRiskLimits(
         response->set_success(true);
         response->set_message("Risk limits updated successfully");
         
-        LOG_INFO("Risk limits updated via gRPC");
+        utils::Logger::info("Risk limits updated via gRPC");
         return grpc::Status::OK;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error updating risk limits: {}", e.what());
+        utils::Logger::error("Error updating risk limits: {}", e.what());
         response->set_success(false);
         response->set_message("Failed to update risk limits");
         return grpc::Status::OK; // Return OK with error in response
@@ -303,7 +303,7 @@ void RiskManagerGrpcService::risk_alert_streaming_thread(
     grpc::ServerContext* context,
     grpc::ServerWriter<ats::trading_engine::RiskAlertEvent>* writer) {
     
-    LOG_INFO("Risk alert streaming started");
+    utils::Logger::info("Risk alert streaming started");
     
     try {
         while (!context->IsCancelled()) {
@@ -312,17 +312,17 @@ void RiskManagerGrpcService::risk_alert_streaming_thread(
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         }
     } catch (const std::exception& e) {
-        LOG_ERROR("Error in risk alert streaming: {}", e.what());
+        utils::Logger::error("Error in risk alert streaming: {}", e.what());
     }
     
-    LOG_INFO("Risk alert streaming stopped");
+    utils::Logger::info("Risk alert streaming stopped");
 }
 
 void RiskManagerGrpcService::position_update_streaming_thread(
     grpc::ServerContext* context,
     grpc::ServerWriter<ats::trading_engine::PositionUpdateEvent>* writer) {
     
-    LOG_INFO("Position update streaming started");
+    utils::Logger::info("Position update streaming started");
     
     try {
         while (!context->IsCancelled()) {
@@ -331,10 +331,10 @@ void RiskManagerGrpcService::position_update_streaming_thread(
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         }
     } catch (const std::exception& e) {
-        LOG_ERROR("Error in position update streaming: {}", e.what());
+        utils::Logger::error("Error in position update streaming: {}", e.what());
     }
     
-    LOG_INFO("Position update streaming stopped");
+    utils::Logger::info("Position update streaming stopped");
 }
 
 void RiskManagerGrpcService::convert_to_proto(const RiskAlert& from, ats::trading_engine::RiskAlert* to) {

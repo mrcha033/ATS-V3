@@ -2,10 +2,22 @@
 
 #include <string>
 #include <memory>
+#include <chrono>
+
+// Check if spdlog is available
+#ifdef HAS_SPDLOG
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/fmt/ostr.h>
+#else
+#include <iostream>
+#include <fstream>
+#include <mutex>
+#include <sstream>
+#include <iomanip>
+#include <ctime>
+#endif
 
 namespace ats {
 namespace utils {
@@ -89,11 +101,35 @@ public:
     static bool is_enabled(LogLevel level);
 
 private:
+#ifdef HAS_SPDLOG
     static std::shared_ptr<spdlog::logger> logger_;
-    static LogLevel current_level_;
-    
     static spdlog::level::level_enum to_spdlog_level(LogLevel level);
     static LogLevel from_spdlog_level(spdlog::level::level_enum level);
+#else
+    class FallbackLogger {
+    public:
+        template<typename... Args>
+        void trace(const std::string& fmt, Args&&... args) { Logger::write_log(LogLevel::TRACE, fmt); }
+        template<typename... Args>
+        void debug(const std::string& fmt, Args&&... args) { Logger::write_log(LogLevel::DEBUG, fmt); }
+        template<typename... Args>
+        void info(const std::string& fmt, Args&&... args) { Logger::write_log(LogLevel::INFO, fmt); }
+        template<typename... Args>
+        void warn(const std::string& fmt, Args&&... args) { Logger::write_log(LogLevel::WARN, fmt); }
+        template<typename... Args>
+        void error(const std::string& fmt, Args&&... args) { Logger::write_log(LogLevel::ERROR, fmt); }
+        template<typename... Args>
+        void critical(const std::string& fmt, Args&&... args) { Logger::write_log(LogLevel::CRITICAL, fmt); }
+    };
+    
+    static std::shared_ptr<FallbackLogger> logger_;
+    static std::ofstream log_file_;
+    static std::mutex log_mutex_;
+    static void write_log(LogLevel level, const std::string& message);
+    static std::string get_timestamp();
+    static std::string level_to_string(LogLevel level);
+#endif
+    static LogLevel current_level_;
 };
 
 // Structured logging for trading events

@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <memory>
 #include <fstream>
+#include <functional>
 
 namespace ats {
 namespace backtest {
@@ -221,8 +222,9 @@ public:
     bool initialize(const DataLoaderConfig& config);
     
     // Load data based on configuration
+    bool load_data(std::vector<MarketDataPoint>& market_data);
     bool load_data(std::vector<MarketDataPoint>& market_data,
-                  std::vector<TradeData>& trade_data = {});
+                  std::vector<TradeData>& trade_data);
     
     // Load specific data ranges
     bool load_data_range(std::chrono::system_clock::time_point start_time,

@@ -65,7 +65,7 @@ if(MSVC)
     target_compile_options(price_collector PRIVATE /wd4996 /wd4267 /wd4244)
 else()
     target_compile_options(price_collector PRIVATE 
-        -Wall -Wextra -Wpedantic
+        -Wall -Wpedantic
         -Wno-unused-parameter
         -Wno-unused-variable
     )

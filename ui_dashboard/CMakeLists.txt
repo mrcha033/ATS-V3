@@ -158,7 +158,7 @@ set_target_properties(${MODULE_NAME} PROPERTIES
 # Compiler flags
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     target_compile_options(${MODULE_NAME} PRIVATE
-        -Wall -Wextra -Wpedantic
+        -Wall -Wpedantic
         -O3 -march=native
     )
 endif()

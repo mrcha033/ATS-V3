@@ -1,20 +1,38 @@
 #pragma once
 
-#include "../../src/core/risk_manager.hpp"
-#include "../../trading_engine/grpc/trading_engine.grpc.pb.h"
-#include "../../utils/redis_client.hpp"
-#include "../../utils/influxdb_client.hpp"
-#include <grpcpp/grpcpp.h>
+#include "types/common_types.hpp"
+#include "config/config_manager.hpp"
+#include "utils/logger.hpp"
+#include "core/risk_manager.hpp"
+#include "core/types.hpp"
+#include "trading_engine_mock.hpp"
 #include <memory>
+#include <string>
 #include <unordered_map>
+#include <vector>
 #include <chrono>
 #include <thread>
 #include <atomic>
 #include <future>
 #include <queue>
+#include <mutex>
 #include <condition_variable>
+#include <shared_mutex>
+#include <functional>
 
 namespace ats {
+
+// Forward declarations for external dependencies
+class ConfigManager;
+class DatabaseManager;
+
+// gRPC and trading engine types are provided by trading_engine_mock.hpp
+
+namespace utils {
+    class RedisClient;
+    class InfluxDBClient;
+}
+
 namespace risk_manager {
 
 // Real-time position tracking structure
@@ -100,14 +118,14 @@ struct RiskAlert {
     }
 };
 
-// Enhanced risk manager with real-time capabilities
+// Enhanced risk manager with real-time capabilities  
 class EnhancedRiskManager : public RiskManager {
 public:
     EnhancedRiskManager(ConfigManager* config_manager, DatabaseManager* db_manager);
     ~EnhancedRiskManager();
     
-    // Lifecycle
-    bool initialize() override;
+    // Lifecycle  
+    bool initialize();
     void shutdown();
     
     // Real-time position tracking
@@ -120,13 +138,13 @@ public:
     void stop_position_streaming();
     
     // Enhanced risk assessment
-    RiskAssessment assess_opportunity_realtime(const ArbitrageOpportunity& opportunity) override;
+    RiskAssessment assess_opportunity_realtime(const ArbitrageOpportunity& opportunity);
     bool check_exposure_limits_realtime(const std::string& symbol, double additional_quantity);
     bool check_concentration_limits(const std::string& symbol, double additional_quantity);
     
     // Real-time monitoring
     void start_realtime_monitoring();
-    void stop_realtime_monitoring();\n    \n    // Automatic trading halt and limit checking\n    void check_and_trigger_halt();\n    void resume_after_halt();\n    bool check_all_limits() const;\n    std::vector<std::string> get_limit_violations() const;
+    void stop_realtime_monitoring();
     
     // P&L and position management
     void update_position_realtime(const std::string& symbol, const std::string& exchange,
@@ -155,19 +173,20 @@ public:
     bool check_all_limits() const;
     std::vector<std::string> get_limit_violations() const;
     
-    // Event handlers for gRPC streaming
-    void on_trade_execution(const ats::trading_engine::TradeExecution& execution);
-    void on_order_update(const ats::trading_engine::OrderUpdateEvent& update);
-    void on_balance_update(const ats::trading_engine::Balance& balance);
+    // Event handlers for trading engine integration
+    void on_trade_execution(const TradeRecord& execution);
+    void on_order_update(const Order& order);
+    void on_balance_update(const Balance& balance);
     
 private:
     std::unique_ptr<RealTimePnLCalculator> pnl_calculator_;
     std::shared_ptr<utils::RedisClient> redis_client_;
     std::shared_ptr<utils::InfluxDBClient> influxdb_client_;
     
-    // gRPC connection to trading engine
-    std::unique_ptr<ats::trading_engine::TradingEngineService::Stub> trading_engine_stub_;
+    // Trading engine connection (placeholder for future gRPC integration)
+    std::string trading_engine_address_;
     std::shared_ptr<grpc::Channel> trading_engine_channel_;
+    std::unique_ptr<ats::trading_engine::TradingEngineService::Stub> trading_engine_stub_;
     
     // Real-time monitoring
     std::atomic<bool> monitoring_active_;
@@ -213,78 +232,16 @@ private:
     void send_alert_to_influxdb(const RiskAlert& alert);
     
     std::string generate_alert_id() const;
-    void log_risk_event(const std::string& event_type, const std::string& details);\n    \n    // Risk calculation helpers\n    double calculate_concentration_risk(const std::string& symbol) const;\n    double calculate_volatility_risk(const std::string& symbol) const;\n    double calculate_correlation_risk(const std::string& symbol) const;
+    void log_risk_event(const std::string& event_type, const std::string& details);
+    
+    // Risk calculation helpers
+    double calculate_concentration_risk(const std::string& symbol) const;
+    double calculate_volatility_risk(const std::string& symbol) const;
+    double calculate_correlation_risk(const std::string& symbol) const;
 };
 
-// gRPC service for risk manager
-class RiskManagerGrpcService final : public ats::trading_engine::RiskManagerService::Service {
-public:
-    RiskManagerGrpcService();
-    ~RiskManagerGrpcService();
-    
-    bool initialize(std::shared_ptr<EnhancedRiskManager> risk_manager);
-    
-    // Risk status and monitoring
-    grpc::Status GetRiskStatus(grpc::ServerContext* context,
-                              const google::protobuf::Empty* request,
-                              ats::trading_engine::GetRiskStatusResponse* response) override;
-    
-    grpc::Status GetPositions(grpc::ServerContext* context,
-                             const google::protobuf::Empty* request,
-                             ats::trading_engine::GetPositionsResponse* response) override;
-    
-    grpc::Status GetPnL(grpc::ServerContext* context,
-                       const google::protobuf::Empty* request,
-                       ats::trading_engine::GetPnLResponse* response) override;
-    
-    // Risk alerts
-    grpc::Status GetRiskAlerts(grpc::ServerContext* context,
-                              const ats::trading_engine::GetRiskAlertsRequest* request,
-                              ats::trading_engine::GetRiskAlertsResponse* response) override;
-    
-    grpc::Status AcknowledgeAlert(grpc::ServerContext* context,
-                                 const ats::trading_engine::AcknowledgeAlertRequest* request,
-                                 ats::trading_engine::AcknowledgeAlertResponse* response) override;
-    
-    // Emergency controls
-    grpc::Status EmergencyHalt(grpc::ServerContext* context,
-                              const ats::trading_engine::EmergencyHaltRequest* request,
-                              ats::trading_engine::EmergencyHaltResponse* response) override;
-    
-    grpc::Status ResumeTrading(grpc::ServerContext* context,
-                              const google::protobuf::Empty* request,
-                              ats::trading_engine::ResumeTradeingResponse* response) override;
-    
-    // Configuration
-    grpc::Status UpdateRiskLimits(grpc::ServerContext* context,
-                                 const ats::trading_engine::UpdateRiskLimitsRequest* request,
-                                 ats::trading_engine::UpdateRiskLimitsResponse* response) override;
-    
-    // Streaming
-    grpc::Status StreamRiskAlerts(grpc::ServerContext* context,
-                                 const google::protobuf::Empty* request,
-                                 grpc::ServerWriter<ats::trading_engine::RiskAlertEvent>* writer) override;
-    
-    grpc::Status StreamPositionUpdates(grpc::ServerContext* context,
-                                      const google::protobuf::Empty* request,
-                                      grpc::ServerWriter<ats::trading_engine::PositionUpdateEvent>* writer) override;
-    
-private:
-    std::shared_ptr<EnhancedRiskManager> risk_manager_;
-    
-    // Streaming contexts
-    std::unordered_map<grpc::ServerContext*, std::unique_ptr<std::thread>> streaming_threads_;
-    std::mutex streaming_mutex_;
-    
-    void risk_alert_streaming_thread(grpc::ServerContext* context,
-                                    grpc::ServerWriter<ats::trading_engine::RiskAlertEvent>* writer);
-    void position_update_streaming_thread(grpc::ServerContext* context,
-                                         grpc::ServerWriter<ats::trading_engine::PositionUpdateEvent>* writer);
-    
-    // Conversion helpers
-    void convert_to_proto(const RiskAlert& from, ats::trading_engine::RiskAlert* to);
-    void convert_to_proto(const RealTimePosition& from, ats::trading_engine::Position* to);
-};
+// Note: gRPC service implementation would be added here when 
+// trading engine protobuf definitions are available
 
 } // namespace risk_manager
 } // namespace ats

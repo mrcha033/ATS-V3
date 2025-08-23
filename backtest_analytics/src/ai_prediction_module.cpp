@@ -421,13 +421,13 @@ bool LinearRegressionModel::train(const std::vector<FeatureVector>& training_dat
         training_mse_ = mse / training_data.size();
         
         is_trained_ = true;
-        LOG_INFO("Linear regression model trained with {} samples, MSE: {:.6f}", 
+        ATS_LOG_INFO("Linear regression model trained with {} samples, MSE: {:.6f}", 
                  training_data.size(), training_mse_);
         
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Linear regression training failed: {}", e.what());
+        ATS_LOG_ERROR("Linear regression training failed: {}", e.what());
         return false;
     }
 }
@@ -447,7 +447,7 @@ PredictionResult LinearRegressionModel::predict(const FeatureVector& features) {
         auto flat_features = features.to_flat_vector();
         
         if (flat_features.size() != feature_count_) {
-            LOG_WARNING("Feature size mismatch: expected {}, got {}", 
+            ATS_LOG_WARN("Feature size mismatch: expected {}, got {}", 
                        feature_count_, flat_features.size());
             result.confidence_score = 0.0;
             return result;
@@ -478,7 +478,7 @@ PredictionResult LinearRegressionModel::predict(const FeatureVector& features) {
         }
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Prediction failed: {}", e.what());
+        ATS_LOG_ERROR("Prediction failed: {}", e.what());
         result.confidence_score = 0.0;
     }
     
@@ -527,7 +527,7 @@ bool LinearRegressionModel::save_model(const std::string& file_path) {
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to save model: {}", e.what());
+        ATS_LOG_ERROR("Failed to save model: {}", e.what());
         return false;
     }
 }
@@ -558,12 +558,12 @@ bool LinearRegressionModel::load_model(const std::string& file_path) {
         }
         
         is_trained_ = true;
-        LOG_INFO("Linear regression model loaded from {}", file_path);
+        ATS_LOG_INFO("Linear regression model loaded from {}", file_path);
         
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to load model: {}", e.what());
+        ATS_LOG_ERROR("Failed to load model: {}", e.what());
         return false;
     }
 }
@@ -650,15 +650,15 @@ bool AIPredictionModule::initialize(const AIPredictionConfig& config) {
         model_ = create_model(config_.model_type);
         
         if (!model_) {
-            LOG_ERROR("Failed to create model of type: {}", config_.model_type);
+            ATS_LOG_ERROR("Failed to create model of type: {}", config_.model_type);
             return false;
         }
         
-        LOG_INFO("AI Prediction Module initialized with model type: {}", config_.model_type);
+        ATS_LOG_INFO("AI Prediction Module initialized with model type: {}", config_.model_type);
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to initialize AI Prediction Module: {}", e.what());
+        ATS_LOG_ERROR("Failed to initialize AI Prediction Module: {}", e.what());
         return false;
     }
 }
@@ -669,14 +669,14 @@ std::unique_ptr<MLModel> AIPredictionModule::create_model(const std::string& mod
     } else if (model_type == "random_forest") {
         return std::make_unique<RandomForestModel>();
     } else {
-        LOG_WARNING("Unknown model type: {}, defaulting to linear regression", model_type);
+        ATS_LOG_WARN("Unknown model type: {}, defaulting to linear regression", model_type);
         return std::make_unique<LinearRegressionModel>();
     }
 }
 
 bool AIPredictionModule::train_model(const std::vector<MarketDataPoint>& historical_data) {
     if (!model_ || !feature_engineer_) {
-        LOG_ERROR("Model or feature engineer not initialized");
+        ATS_LOG_ERROR("Model or feature engineer not initialized");
         return false;
     }
     
@@ -703,7 +703,7 @@ bool AIPredictionModule::train_model(const std::vector<MarketDataPoint>& histori
         }
         
         if (training_features_.empty()) {
-            LOG_ERROR("No training features extracted");
+            ATS_LOG_ERROR("No training features extracted");
             return false;
         }
         
@@ -711,13 +711,13 @@ bool AIPredictionModule::train_model(const std::vector<MarketDataPoint>& histori
         bool success = model_->train(training_features_, training_targets_);
         if (success) {
             last_training_time_ = std::chrono::system_clock::now();
-            LOG_INFO("Model trained with {} samples", training_features_.size());
+            ATS_LOG_INFO("Model trained with {} samples", training_features_.size());
         }
         
         return success;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Model training failed: {}", e.what());
+        ATS_LOG_ERROR("Model training failed: {}", e.what());
         return false;
     }
 }
@@ -785,7 +785,7 @@ PredictionResult AIPredictionModule::predict_spread(const std::vector<MarketData
         }
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Prediction failed for {}: {}", symbol, e.what());
+        ATS_LOG_ERROR("Prediction failed for {}: {}", symbol, e.what());
         result.confidence_score = 0.0;
     }
     

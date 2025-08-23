@@ -2,6 +2,7 @@
 
 #include "crypto_manager.hpp"
 #include <string>
+#include <vector>
 #include <unordered_map>
 #include <chrono>
 #include <memory>

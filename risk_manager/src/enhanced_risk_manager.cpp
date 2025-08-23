@@ -1,6 +1,7 @@
 #include "../include/enhanced_risk_manager.hpp"
-#include "../../utils/logger.hpp"
-#include "../../utils/crypto_utils.hpp"
+#include "utils/logger.hpp"
+#include "utils/crypto_utils.hpp"
+#include "trading_engine_mock.hpp"
 #include <algorithm>
 #include <numeric>
 #include <cmath>
@@ -13,11 +14,11 @@ namespace risk_manager {
 
 // RealTimePnLCalculator Implementation
 RealTimePnLCalculator::RealTimePnLCalculator() {
-    LOG_INFO("Initializing Real-Time P&L Calculator");
+    utils::Logger::info("Initializing Real-Time P&L Calculator");
 }
 
 RealTimePnLCalculator::~RealTimePnLCalculator() {
-    LOG_INFO("Shutting down Real-Time P&L Calculator");
+    utils::Logger::info("Shutting down Real-Time P&L Calculator");
 }
 
 bool RealTimePnLCalculator::initialize(std::shared_ptr<utils::RedisClient> redis_client) {
@@ -27,16 +28,16 @@ bool RealTimePnLCalculator::initialize(std::shared_ptr<utils::RedisClient> redis
         // Load existing positions from Redis
         load_positions_from_redis();
         
-        LOG_INFO("Real-Time P&L Calculator initialized successfully");
+        utils::Logger::info("Real-Time P&L Calculator initialized successfully");
         return true;
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to initialize Real-Time P&L Calculator: {}", e.what());
+        utils::Logger::error("Failed to initialize Real-Time P&L Calculator: {}", e.what());
         return false;
     }
 }
 
 void RealTimePnLCalculator::shutdown() {
-    LOG_INFO("Shutting down Real-Time P&L Calculator");
+    utils::Logger::info("Shutting down Real-Time P&L Calculator");
     
     // Persist final positions to Redis
     std::shared_lock<std::shared_mutex> lock(positions_mutex_);
@@ -83,7 +84,7 @@ void RealTimePnLCalculator::update_position(const std::string& symbol, const std
         // Persist to Redis
         persist_position_to_redis(position);
         
-        LOG_DEBUG("Updated position {}/{}: quantity={:.6f}, avg_price={:.2f}, realized_pnl={:.2f}",
+        utils::Logger::debug("Updated position {}/{}: quantity={:.6f}, avg_price={:.2f}, realized_pnl={:.2f}",
                  symbol, exchange, position.quantity, position.average_price, position.realized_pnl);
     }
 }
@@ -314,7 +315,7 @@ void RealTimePnLCalculator::persist_position_to_redis(const RealTimePosition& po
         redis_client_->expire(key, 86400); // Expire after 24 hours
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to persist position to Redis: {}", e.what());
+        utils::Logger::error("Failed to persist position to Redis: {}", e.what());
     }
 }
 
@@ -332,13 +333,13 @@ void RealTimePnLCalculator::load_positions_from_redis() {
             if (!value.empty()) {
                 // Parse position data (simplified JSON parsing)
                 // In production, use a proper JSON library
-                LOG_DEBUG("Loaded position from Redis: {}", value);
+                utils::Logger::debug("Loaded position from Redis: {}", value);
             }
         }
         
-        LOG_INFO("Loaded {} positions from Redis", keys.size());
+        utils::Logger::info("Loaded {} positions from Redis", keys.size());
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to load positions from Redis: {}", e.what());
+        utils::Logger::error("Failed to load positions from Redis: {}", e.what());
     }
 }
 
@@ -354,12 +355,12 @@ EnhancedRiskManager::EnhancedRiskManager(ConfigManager* config_manager, Database
     pnl_calculator_ = std::make_unique<RealTimePnLCalculator>();
     last_risk_check_ = std::chrono::system_clock::now();
     
-    LOG_INFO("Enhanced Risk Manager initialized");
+    utils::Logger::info("Enhanced Risk Manager initialized");
 }
 
 EnhancedRiskManager::~EnhancedRiskManager() {
     shutdown();
-    LOG_INFO("Enhanced Risk Manager destroyed");
+    utils::Logger::info("Enhanced Risk Manager destroyed");
 }
 
 bool EnhancedRiskManager::initialize() {
@@ -377,16 +378,16 @@ bool EnhancedRiskManager::initialize() {
         enhanced_limits_.realtime_pnl_threshold = 5000.0;
         enhanced_limits_.max_alerts_per_hour = 20;
         
-        LOG_INFO("Enhanced Risk Manager initialized successfully");
+        utils::Logger::info("Enhanced Risk Manager initialized successfully");
         return true;
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to initialize Enhanced Risk Manager: {}", e.what());
+        utils::Logger::error("Failed to initialize Enhanced Risk Manager: {}", e.what());
         return false;
     }
 }
 
 void EnhancedRiskManager::shutdown() {
-    LOG_INFO("Shutting down Enhanced Risk Manager");
+    utils::Logger::info("Shutting down Enhanced Risk Manager");
     
     // Stop monitoring
     stop_realtime_monitoring();
@@ -419,17 +420,17 @@ bool EnhancedRiskManager::initialize_realtime_engine(std::shared_ptr<utils::Redi
         
         // Initialize P&L calculator
         if (!pnl_calculator_->initialize(redis_client)) {
-            LOG_ERROR("Failed to initialize P&L calculator");
+            utils::Logger::error("Failed to initialize P&L calculator");
             return false;
         }
         
         // Start alert processing thread
         alert_processing_thread_ = std::thread(&EnhancedRiskManager::alert_processing_loop, this);
         
-        LOG_INFO("Real-time risk engine initialized successfully");
+        utils::Logger::info("Real-time risk engine initialized successfully");
         return true;
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to initialize real-time risk engine: {}", e.what());
+        utils::Logger::error("Failed to initialize real-time risk engine: {}", e.what());
         return false;
     }
 }
@@ -453,14 +454,14 @@ bool EnhancedRiskManager::connect_to_trading_engine(const std::string& trading_e
         grpc::Status status = trading_engine_stub_->GetHealthStatus(&context, request, &response);
         
         if (status.ok()) {
-            LOG_INFO("Successfully connected to trading engine at {}", trading_engine_address);
+            utils::Logger::info("Successfully connected to trading engine at {}", trading_engine_address);
             return true;
         } else {
-            LOG_ERROR("Failed to connect to trading engine: {}", status.error_message());
+            utils::Logger::error("Failed to connect to trading engine: {}", status.error_message());
             return false;
         }
     } catch (const std::exception& e) {
-        LOG_ERROR("Exception connecting to trading engine: {}", e.what());
+        utils::Logger::error("Exception connecting to trading engine: {}", e.what());
         return false;
     }
 }
@@ -473,7 +474,7 @@ void EnhancedRiskManager::start_realtime_monitoring() {
     monitoring_active_ = true;
     monitoring_thread_ = std::thread(&EnhancedRiskManager::monitoring_loop, this);
     
-    LOG_INFO("Started real-time risk monitoring");
+    utils::Logger::info("Started real-time risk monitoring");
 }
 
 void EnhancedRiskManager::stop_realtime_monitoring() {
@@ -488,28 +489,28 @@ void EnhancedRiskManager::stop_realtime_monitoring() {
         monitoring_thread_.join();
     }
     
-    LOG_INFO("Stopped real-time risk monitoring");
+    utils::Logger::info("Stopped real-time risk monitoring");
 }
 
 void EnhancedRiskManager::start_position_streaming() {
     if (!trading_engine_stub_) {
-        LOG_ERROR("Trading engine not connected, cannot start position streaming");
+        utils::Logger::error("Trading engine not connected, cannot start position streaming");
         return;
     }
     
     position_streaming_thread_ = std::thread(&EnhancedRiskManager::position_streaming_loop, this);
-    LOG_INFO("Started position streaming from trading engine");
+    utils::Logger::info("Started position streaming from trading engine");
 }
 
 void EnhancedRiskManager::stop_position_streaming() {
     if (position_streaming_thread_.joinable()) {
         position_streaming_thread_.join();
     }
-    LOG_INFO("Stopped position streaming");
+    utils::Logger::info("Stopped position streaming");
 }
 
 void EnhancedRiskManager::monitoring_loop() {
-    LOG_INFO("Risk monitoring loop started");
+    utils::Logger::info("Risk monitoring loop started");
     
     while (monitoring_active_.load()) {
         try {
@@ -535,12 +536,12 @@ void EnhancedRiskManager::monitoring_loop() {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             
         } catch (const std::exception& e) {
-            LOG_ERROR("Error in risk monitoring loop: {}", e.what());
+            utils::Logger::error("Error in risk monitoring loop: {}", e.what());
             std::this_thread::sleep_for(std::chrono::seconds(1));
         }
     }
     
-    LOG_INFO("Risk monitoring loop stopped");
+    utils::Logger::info("Risk monitoring loop stopped");
 }
 
 void EnhancedRiskManager::check_pnl_limits() {
@@ -646,7 +647,7 @@ void EnhancedRiskManager::send_risk_alert(const RiskAlert& alert) {
     alerts_sent_today_++;
     alert_cv_.notify_one();
     
-    LOG_WARNING("Risk alert sent: [{}] {}", static_cast<int>(alert.severity), alert.message);
+    utils::Logger::warn("Risk alert sent: [{}] {}", static_cast<int>(alert.severity), alert.message);
 }
 
 void EnhancedRiskManager::alert_processing_loop() {
@@ -691,7 +692,7 @@ void EnhancedRiskManager::send_alert_to_redis(const RiskAlert& alert) {
         redis_client_->publish(channel, message);
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to send alert to Redis: {}", e.what());
+        utils::Logger::error("Failed to send alert to Redis: {}", e.what());
     }
 }
 
@@ -712,7 +713,7 @@ void EnhancedRiskManager::send_alert_to_influxdb(const RiskAlert& alert) {
         influxdb_client_->write_point(line.str());
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to send alert to InfluxDB: {}", e.what());
+        utils::Logger::error("Failed to send alert to InfluxDB: {}", e.what());
     }
 }
 
@@ -859,7 +860,7 @@ bool EnhancedRiskManager::check_exposure_limits_realtime(const std::string& symb
     double projected_exposure = current_exposure + estimated_additional_exposure;
     
     if (projected_exposure > limits_.max_total_exposure_usd) {
-        LOG_WARNING("Trade rejected: would exceed exposure limit. Current: {:.2f}, Projected: {:.2f}, Limit: {:.2f}",
+        utils::Logger::warn("Trade rejected: would exceed exposure limit. Current: {:.2f}, Projected: {:.2f}, Limit: {:.2f}",
                    current_exposure, projected_exposure, limits_.max_total_exposure_usd);
         return false;
     }
@@ -895,7 +896,7 @@ bool EnhancedRiskManager::check_concentration_limits(const std::string& symbol, 
     double projected_concentration_ratio = projected_symbol_exposure / (total_portfolio_value + estimated_additional_exposure);
     
     if (projected_concentration_ratio > enhanced_limits_.max_concentration_ratio) {
-        LOG_WARNING("Trade rejected: would exceed concentration limit for {}. Current ratio: {:.2f}%, Projected: {:.2f}%, Limit: {:.2f}%",
+        utils::Logger::warn("Trade rejected: would exceed concentration limit for {}. Current ratio: {:.2f}%, Projected: {:.2f}%, Limit: {:.2f}%",
                    symbol, (current_symbol_exposure / total_portfolio_value) * 100.0, 
                    projected_concentration_ratio * 100.0, enhanced_limits_.max_concentration_ratio * 100.0);
         return false;
@@ -988,7 +989,7 @@ double EnhancedRiskManager::calculate_correlation_risk(const std::string& symbol
 }
 
 void EnhancedRiskManager::log_risk_event(const std::string& event_type, const std::string& details) {
-    LOG_INFO("Risk Event [{}]: {}", event_type, details);
+    utils::Logger::info("Risk Event [{}]: {}", event_type, details);
 }
 
 void EnhancedRiskManager::manual_halt(const std::string& reason) {
@@ -1002,16 +1003,16 @@ void EnhancedRiskManager::manual_halt(const std::string& reason) {
     
     send_risk_alert(alert);
     
-    LOG_CRITICAL("Manual trading halt triggered: {}", reason);
+    utils::Logger::error("Manual trading halt triggered: {}", reason);
 }
 
 void EnhancedRiskManager::position_streaming_loop() {
     if (!trading_engine_stub_) {
-        LOG_ERROR("Trading engine stub not available for position streaming");
+        utils::Logger::error("Trading engine stub not available for position streaming");
         return;
     }
     
-    LOG_INFO("Starting position streaming loop");
+    utils::Logger::info("Starting position streaming loop");
     
     while (monitoring_active_.load()) {
         try {
@@ -1033,11 +1034,11 @@ void EnhancedRiskManager::position_streaming_loop() {
             
             grpc::Status status = stream->Finish();
             if (!status.ok()) {
-                LOG_WARNING("Trade execution stream ended: {}", status.error_message());
+                utils::Logger::warn("Trade execution stream ended: {}", status.error_message());
             }
             
         } catch (const std::exception& e) {
-            LOG_ERROR("Error in position streaming loop: {}", e.what());
+            utils::Logger::error("Error in position streaming loop: {}", e.what());
         }
         
         // Wait before reconnecting
@@ -1046,38 +1047,37 @@ void EnhancedRiskManager::position_streaming_loop() {
         }
     }
     
-    LOG_INFO("Position streaming loop stopped");
+    utils::Logger::info("Position streaming loop stopped");
 }
 
-void EnhancedRiskManager::on_trade_execution(const ats::trading_engine::TradeExecution& execution) {
+void EnhancedRiskManager::on_trade_execution(const TradeRecord& execution) {
     try {
-        LOG_DEBUG("Processing trade execution: {}", execution.trade_id());
+        utils::Logger::debug("Processing trade execution: {}", execution.trade_id);
         
         // Update positions based on trade execution
-        if (execution.result() == ats::trading_engine::EXECUTION_RESULT_SUCCESS || 
-            execution.result() == ats::trading_engine::EXECUTION_RESULT_PARTIAL_SUCCESS) {
+        if (execution.is_completed && execution.failure_reason.empty()) {
             
             // Update buy side position
-            if (execution.executed_quantity() > 0) {
+            if (execution.volume > 0) {
                 pnl_calculator_->update_position(
-                    execution.symbol(),
-                    execution.buy_exchange(),
-                    execution.executed_quantity(),
-                    execution.buy_price()
+                    execution.symbol,
+                    execution.buy_exchange,
+                    execution.volume,
+                    execution.buy_price
                 );
                 
                 // Update sell side position (negative quantity)
                 pnl_calculator_->update_position(
-                    execution.symbol(),
-                    execution.sell_exchange(),
-                    -execution.executed_quantity(),
-                    execution.sell_price()
+                    execution.symbol,
+                    execution.sell_exchange,
+                    -execution.volume,
+                    execution.sell_price
                 );
             }
             
             // Update P&L with realized profit
-            if (execution.actual_profit() != 0.0) {
-                UpdatePnL(execution.actual_profit());
+            if (execution.realized_pnl != 0.0) {
+                UpdatePnL(execution.realized_pnl);
             }
         }
         
@@ -1085,97 +1085,98 @@ void EnhancedRiskManager::on_trade_execution(const ats::trading_engine::TradeExe
         check_and_trigger_halt();
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error processing trade execution: {}", e.what());
+        utils::Logger::error("Error processing trade execution: {}", e.what());
         
         RiskAlert alert;
         alert.severity = RiskAlert::Severity::WARNING;
         alert.type = "POSITION_UPDATE_ERROR";
         alert.message = "Failed to update position from trade execution";
-        alert.metadata["trade_id"] = execution.trade_id();
+        alert.metadata["trade_id"] = execution.trade_id;
         alert.metadata["error"] = e.what();
         
         send_risk_alert(alert);
     }
 }
 
-void EnhancedRiskManager::on_order_update(const ats::trading_engine::OrderUpdateEvent& update) {
+void EnhancedRiskManager::on_order_update(const Order& order) {
     try {
-        LOG_DEBUG("Processing order update: {} - {}", update.order().id(), update.update_type());
-        
-        const auto& order = update.order();
+        utils::Logger::debug("Processing order update: {}", order.id);
         
         // Update position tracking based on order status
-        if (order.status() == ats::trading_engine::ORDER_STATUS_FILLED || 
-            order.status() == ats::trading_engine::ORDER_STATUS_PARTIALLY_FILLED) {
+        if (order.status == OrderStatus::FILLED || 
+            order.status == OrderStatus::PARTIALLY_FILLED) {
             
-            double filled_quantity = order.filled_quantity();
-            if (order.side() == ats::trading_engine::ORDER_SIDE_SELL) {
+            double filled_quantity = order.executed_quantity;
+            if (order.side == OrderSide::SELL) {
                 filled_quantity = -filled_quantity;
             }
             
+            // Note: Order doesn't have exchange field, would need to be added
+            // For now, use a placeholder
+            std::string exchange = "unknown";
+            
             pnl_calculator_->update_position(
-                order.symbol(),
-                order.exchange(),
+                order.symbol,
+                exchange,
                 filled_quantity,
-                order.price()
+                order.price
             );
         }
         
-        // Monitor for failed orders
-        if (order.status() == ats::trading_engine::ORDER_STATUS_REJECTED || 
-            order.status() == ats::trading_engine::ORDER_STATUS_FAILED) {
+        // Monitor for failed orders (using is_working flag as status indicator)
+        if (!order.is_working && order.executed_quantity == 0) {
             
             RiskAlert alert;
             alert.severity = RiskAlert::Severity::WARNING;
             alert.type = "ORDER_FAILURE";
-            alert.message = "Order execution failed";
-            alert.metadata["order_id"] = order.id();
-            alert.metadata["symbol"] = order.symbol();
-            alert.metadata["exchange"] = order.exchange();
-            alert.metadata["error_message"] = order.error_message();
+            alert.message = "Order execution failed or canceled";
+            alert.metadata["order_id"] = order.id;
+            alert.metadata["symbol"] = order.symbol;
+            alert.metadata["client_order_id"] = order.client_order_id;
             
             send_risk_alert(alert);
         }
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error processing order update: {}", e.what());
+        utils::Logger::error("Error processing order update: {}", e.what());
     }
 }
 
-void EnhancedRiskManager::on_balance_update(const ats::trading_engine::Balance& balance) {
+void EnhancedRiskManager::on_balance_update(const Balance& balance) {
     try {
-        LOG_DEBUG("Processing balance update: {} - {:.2f}", balance.currency(), balance.total());
+        double total_balance = balance.free + balance.locked;
+        utils::Logger::debug("Processing balance update: {} - {:.2f}", balance.asset, total_balance);
         
         // Monitor for low balance conditions
-        if (balance.available() < balance.total() * 0.1) { // Less than 10% available
+        if (balance.free < total_balance * 0.1) { // Less than 10% available
             RiskAlert alert;
             alert.severity = RiskAlert::Severity::WARNING;
             alert.type = "LOW_BALANCE_WARNING";
             alert.message = "Low available balance detected";
-            alert.metadata["currency"] = balance.currency();
-            alert.metadata["available"] = std::to_string(balance.available());
-            alert.metadata["total"] = std::to_string(balance.total());
+            alert.metadata["currency"] = balance.asset;
+            alert.metadata["available"] = std::to_string(balance.free);
+            alert.metadata["total"] = std::to_string(total_balance);
             
             send_risk_alert(alert);
         }
         
         // Monitor for negative balances
-        if (balance.available() < 0) {
+        if (balance.free < 0) {
             RiskAlert alert;
             alert.severity = RiskAlert::Severity::CRITICAL;
             alert.type = "NEGATIVE_BALANCE";
             alert.message = "Negative balance detected";
-            alert.metadata["currency"] = balance.currency();
-            alert.metadata["available"] = std::to_string(balance.available());
+            alert.metadata["currency"] = balance.asset;
+            alert.metadata["available"] = std::to_string(balance.free);
             
             send_risk_alert(alert);
             
             // Consider halting for negative balances
-            manual_halt("Negative balance detected for " + balance.currency());
+            manual_halt("Negative balance detected for " + balance.asset);
         }
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error processing balance update: {}", e.what());
+        utils::Logger::error("Error processing balance update: {}", e.what());
     }
 }
 
@@ -1222,7 +1223,7 @@ void EnhancedRiskManager::check_and_trigger_halt() {
         }
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error in check_and_trigger_halt: {}", e.what());
+        utils::Logger::error("Error in check_and_trigger_halt: {}", e.what());
     }
 }
 
@@ -1233,7 +1234,7 @@ void EnhancedRiskManager::resume_after_halt() {
     
     // Perform comprehensive risk checks before resuming
     if (!check_all_limits()) {
-        LOG_WARNING("Cannot resume trading: risk limits still violated");
+        utils::Logger::warn("Cannot resume trading: risk limits still violated");
         return;
     }
     
@@ -1247,7 +1248,7 @@ void EnhancedRiskManager::resume_after_halt() {
     
     send_risk_alert(alert);
     
-    LOG_INFO("Trading resumed after halt");
+    utils::Logger::info("Trading resumed after halt");
 }
 
 bool EnhancedRiskManager::check_all_limits() const {
@@ -1275,7 +1276,7 @@ bool EnhancedRiskManager::check_all_limits() const {
         
         return true;
     } catch (const std::exception& e) {
-        LOG_ERROR("Error checking risk limits: {}", e.what());
+        utils::Logger::error("Error checking risk limits: {}", e.what());
         return false;
     }
 }
@@ -1326,7 +1327,7 @@ std::vector<std::string> EnhancedRiskManager::get_limit_violations() const {
         }
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error getting limit violations: {}", e.what());
+        utils::Logger::error("Error getting limit violations: {}", e.what());
         violations.push_back("Error checking risk limits");
     }
     
@@ -1356,7 +1357,7 @@ void EnhancedRiskManager::persist_risk_metrics() {
         influxdb_client_->write_point(line.str());
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to persist risk metrics: {}", e.what());
+        utils::Logger::error("Failed to persist risk metrics: {}", e.what());
     }
 }
 

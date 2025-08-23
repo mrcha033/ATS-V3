@@ -12,6 +12,7 @@
 #include <mutex>
 #include <queue>
 #include <chrono>
+#include <shared_mutex>
 
 namespace ats {
 namespace price_collector {

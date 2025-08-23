@@ -1,5 +1,5 @@
-#include "../include/crypto_manager.hpp"
-#include "../../utils/logger.hpp"
+#include "crypto_manager.hpp"
+#include "utils/logger.hpp"
 #include <fstream>
 #include <iomanip>
 #include <sstream>
@@ -21,7 +21,7 @@ CryptoManager::CryptoManager() {
     SSL_load_error_strings();
     OpenSSL_add_all_algorithms();
     
-    LOG_INFO("CryptoManager initialized");
+    utils::Logger::info("CryptoManager initialized");
 }
 
 CryptoManager::~CryptoManager() {
@@ -44,27 +44,27 @@ bool CryptoManager::initialize(const std::string& master_key_path) {
         std::string master_key_file = key_storage_path_ + "master.key";
         if (std::filesystem::exists(master_key_file)) {
             if (!load_master_key_from_file(master_key_file)) {
-                LOG_ERROR("Failed to load existing master key");
+                utils::Logger::error("Failed to load existing master key");
                 return false;
             }
-            LOG_INFO("Loaded existing master key");
+            utils::Logger::info("Loaded existing master key");
         } else {
             if (!generate_new_master_key()) {
-                LOG_ERROR("Failed to generate new master key");
+                utils::Logger::error("Failed to generate new master key");
                 return false;
             }
             if (!save_master_key_to_file(master_key_file)) {
-                LOG_ERROR("Failed to save new master key");
+                utils::Logger::error("Failed to save new master key");
                 return false;
             }
-            LOG_INFO("Generated and saved new master key");
+            utils::Logger::info("Generated and saved new master key");
         }
         
-        LOG_INFO("CryptoManager initialized successfully");
+        utils::Logger::info("CryptoManager initialized successfully");
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to initialize CryptoManager: {}", e.what());
+        utils::Logger::error("Failed to initialize CryptoManager: {}", e.what());
         return false;
     }
 }
@@ -80,7 +80,7 @@ void CryptoManager::shutdown() {
     encryption_keys_.clear();
     
     cleanup_openssl();
-    LOG_INFO("CryptoManager shutdown completed");
+    utils::Logger::info("CryptoManager shutdown completed");
 }
 
 CryptoManager::EncryptionResult CryptoManager::encrypt_aes256_gcm(const std::string& plaintext, const std::string& key_id) {
@@ -156,10 +156,10 @@ CryptoManager::EncryptionResult CryptoManager::encrypt_aes256_gcm(const std::str
         SecurityUtils::secure_zero_memory(key.data(), key.size());
         
         result.success = true;
-        LOG_DEBUG("Successfully encrypted {} bytes", plaintext.length());
+        utils::Logger::debug("Successfully encrypted {} bytes", plaintext.length());
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Encryption failed: {}", e.what());
+        utils::Logger::error("Encryption failed: {}", e.what());
         result.success = false;
     }
     
@@ -239,11 +239,11 @@ std::string CryptoManager::decrypt_aes256_gcm(const std::vector<uint8_t>& encryp
         // Clear the plaintext buffer
         SecurityUtils::secure_zero_memory(plaintext_buffer.data(), plaintext_buffer.size());
         
-        LOG_DEBUG("Successfully decrypted {} bytes", plaintext_len);
+        utils::Logger::debug("Successfully decrypted {} bytes", plaintext_len);
         return result;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Decryption failed: {}", e.what());
+        utils::Logger::error("Decryption failed: {}", e.what());
         return "";
     }
 }
@@ -266,24 +266,24 @@ bool CryptoManager::store_encrypted_api_key(const std::string& exchange,
         // Encrypt the credentials
         auto encryption_result = encrypt_aes256_gcm(credentials_json, "api_credentials_" + exchange);
         if (!encryption_result.success) {
-            LOG_ERROR("Failed to encrypt API credentials for {}", exchange);
+            utils::Logger::error("Failed to encrypt API credentials for {}", exchange);
             return false;
         }
         
         // Save to file
         if (!save_encrypted_credentials_to_file(exchange, encryption_result)) {
-            LOG_ERROR("Failed to save encrypted credentials for {}", exchange);
+            utils::Logger::error("Failed to save encrypted credentials for {}", exchange);
             return false;
         }
         
         // Clear sensitive data
         SecurityUtils::secure_zero_string(credentials_json);
         
-        LOG_INFO("Successfully stored encrypted API credentials for {}", exchange);
+        utils::Logger::info("Successfully stored encrypted API credentials for {}", exchange);
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to store API credentials for {}: {}", exchange, e.what());
+        utils::Logger::error("Failed to store API credentials for {}: {}", exchange, e.what());
         return false;
     }
 }
@@ -295,7 +295,7 @@ CryptoManager::ApiCredentials CryptoManager::retrieve_api_credentials(const std:
         // Load encrypted credentials from file
         EncryptionResult encrypted_data;
         if (!load_encrypted_credentials_from_file(exchange, encrypted_data)) {
-            LOG_ERROR("Failed to load encrypted credentials for {}", exchange);
+            utils::Logger::error("Failed to load encrypted credentials for {}", exchange);
             return credentials;
         }
         
@@ -308,7 +308,7 @@ CryptoManager::ApiCredentials CryptoManager::retrieve_api_credentials(const std:
         );
         
         if (credentials_json.empty()) {
-            LOG_ERROR("Failed to decrypt credentials for {}", exchange);
+            utils::Logger::error("Failed to decrypt credentials for {}", exchange);
             return credentials;
         }
         
@@ -331,10 +331,10 @@ CryptoManager::ApiCredentials CryptoManager::retrieve_api_credentials(const std:
         // Clear sensitive data
         SecurityUtils::secure_zero_string(credentials_json);
         
-        LOG_DEBUG("Successfully retrieved API credentials for {}", exchange);
+        utils::Logger::debug("Successfully retrieved API credentials for {}", exchange);
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to retrieve API credentials for {}: {}", exchange, e.what());
+        utils::Logger::error("Failed to retrieve API credentials for {}: {}", exchange, e.what());
     }
     
     return credentials;
@@ -403,10 +403,10 @@ std::string CryptoManager::generate_random_string(size_t length) {
 bool CryptoManager::generate_new_master_key() {
     try {
         master_key_ = generate_random_key(32); // 256-bit master key
-        LOG_INFO("Generated new master key");
+        utils::Logger::info("Generated new master key");
         return true;
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to generate master key: {}", e.what());
+        utils::Logger::error("Failed to generate master key: {}", e.what());
         return false;
     }
 }
@@ -464,14 +464,14 @@ std::vector<uint8_t> CryptoManager::base64_to_bytes(const std::string& base64) {
 
 bool CryptoManager::derive_key_from_master(const std::string& key_id, std::vector<uint8_t>& derived_key) {
     if (master_key_.empty()) {
-        LOG_ERROR("Master key not available for key derivation");
+        utils::Logger::error("Master key not available for key derivation");
         return false;
     }
     
     try {
         EVP_KDF* kdf = EVP_KDF_fetch(nullptr, "HKDF", nullptr);
         if (!kdf) {
-            LOG_ERROR("Failed to fetch HKDF");
+            utils::Logger::error("Failed to fetch HKDF");
             return false;
         }
         
@@ -479,7 +479,7 @@ bool CryptoManager::derive_key_from_master(const std::string& key_id, std::vecto
         EVP_KDF_free(kdf);
         
         if (!ctx) {
-            LOG_ERROR("Failed to create KDF context");
+            utils::Logger::error("Failed to create KDF context");
             return false;
         }
         
@@ -493,7 +493,7 @@ bool CryptoManager::derive_key_from_master(const std::string& key_id, std::vecto
         
         if (EVP_KDF_derive(ctx, derived_key.data(), derived_key.size(), params) != 1) {
             EVP_KDF_CTX_free(ctx);
-            LOG_ERROR("Key derivation failed");
+            utils::Logger::error("Key derivation failed");
             return false;
         }
         
@@ -501,7 +501,7 @@ bool CryptoManager::derive_key_from_master(const std::string& key_id, std::vecto
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Key derivation error: {}", e.what());
+        utils::Logger::error("Key derivation error: {}", e.what());
         return false;
     }
 }
@@ -526,7 +526,7 @@ std::string CryptoManager::get_openssl_error() {
 }
 
 void CryptoManager::log_security_event(const std::string& event, const std::string& details) {
-    LOG_INFO("Security Event [{}]: {}", event, details);
+    utils::Logger::info("Security Event [{}]: {}", event, details);
 }
 
 bool CryptoManager::save_encrypted_credentials_to_file(const std::string& exchange, const EncryptionResult& credentials) {
@@ -535,7 +535,7 @@ bool CryptoManager::save_encrypted_credentials_to_file(const std::string& exchan
         std::ofstream file(filename, std::ios::binary);
         
         if (!file.is_open()) {
-            LOG_ERROR("Failed to open credentials file for writing: {}", filename);
+            utils::Logger::error("Failed to open credentials file for writing: {}", filename);
             return false;
         }
         
@@ -562,7 +562,7 @@ bool CryptoManager::save_encrypted_credentials_to_file(const std::string& exchan
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to save encrypted credentials: {}", e.what());
+        utils::Logger::error("Failed to save encrypted credentials: {}", e.what());
         return false;
     }
 }
@@ -573,7 +573,7 @@ bool CryptoManager::load_encrypted_credentials_from_file(const std::string& exch
         std::ifstream file(filename, std::ios::binary);
         
         if (!file.is_open()) {
-            LOG_ERROR("Failed to open credentials file for reading: {}", filename);
+            utils::Logger::error("Failed to open credentials file for reading: {}", filename);
             return false;
         }
         
@@ -601,7 +601,7 @@ bool CryptoManager::load_encrypted_credentials_from_file(const std::string& exch
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to load encrypted credentials: {}", e.what());
+        utils::Logger::error("Failed to load encrypted credentials: {}", e.what());
         return false;
     }
 }
@@ -610,7 +610,7 @@ bool CryptoManager::load_master_key_from_file(const std::string& file_path) {
     try {
         std::ifstream file(file_path, std::ios::binary);
         if (!file.is_open()) {
-            LOG_ERROR("Failed to open master key file: {}", file_path);
+            utils::Logger::error("Failed to open master key file: {}", file_path);
             return false;
         }
         
@@ -619,7 +619,7 @@ bool CryptoManager::load_master_key_from_file(const std::string& file_path) {
         file.read(reinterpret_cast<char*>(&key_size), sizeof(key_size));
         
         if (key_size != 32) {
-            LOG_ERROR("Invalid master key size: {}", key_size);
+            utils::Logger::error("Invalid master key size: {}", key_size);
             return false;
         }
         
@@ -631,7 +631,7 @@ bool CryptoManager::load_master_key_from_file(const std::string& file_path) {
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to load master key: {}", e.what());
+        utils::Logger::error("Failed to load master key: {}", e.what());
         return false;
     }
 }
@@ -640,7 +640,7 @@ bool CryptoManager::save_master_key_to_file(const std::string& file_path) {
     try {
         std::ofstream file(file_path, std::ios::binary);
         if (!file.is_open()) {
-            LOG_ERROR("Failed to create master key file: {}", file_path);
+            utils::Logger::error("Failed to create master key file: {}", file_path);
             return false;
         }
         
@@ -658,7 +658,7 @@ bool CryptoManager::save_master_key_to_file(const std::string& file_path) {
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to save master key: {}", e.what());
+        utils::Logger::error("Failed to save master key: {}", e.what());
         return false;
     }
 }
@@ -668,11 +668,11 @@ bool CryptoManager::delete_api_credentials(const std::string& exchange) {
         std::string filename = key_storage_path_ + exchange + ".cred";
         if (std::filesystem::exists(filename)) {
             std::filesystem::remove(filename);
-            LOG_INFO("Deleted API credentials for {}", exchange);
+            utils::Logger::info("Deleted API credentials for {}", exchange);
         }
         return true;
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to delete API credentials for {}: {}", exchange, e.what());
+        utils::Logger::error("Failed to delete API credentials for {}: {}", exchange, e.what());
         return false;
     }
 }
@@ -688,7 +688,7 @@ std::vector<std::string> CryptoManager::list_stored_exchanges() {
             }
         }
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to list stored exchanges: {}", e.what());
+        utils::Logger::error("Failed to list stored exchanges: {}", e.what());
     }
     
     return exchanges;

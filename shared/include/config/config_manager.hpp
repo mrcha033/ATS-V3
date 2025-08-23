@@ -5,7 +5,10 @@
 #include <unordered_map>
 #include <memory>
 #include <mutex>
+#include <functional>
+#ifdef HAS_NLOHMANN_JSON
 #include <nlohmann/json.hpp>
+#endif
 #include "types/common_types.hpp"
 #include "utils/crypto_utils.hpp"
 
@@ -126,7 +129,11 @@ public:
     void stop_file_watcher();
     
     // Callback registration for config changes
+#ifdef HAS_NLOHMANN_JSON
     using ConfigChangeCallback = std::function<void(const std::string& section, const nlohmann::json& new_value)>;
+#else
+    using ConfigChangeCallback = std::function<void(const std::string& section, const std::string& new_value)>;
+#endif
     void register_change_callback(const std::string& section, ConfigChangeCallback callback);
     void unregister_change_callback(const std::string& section);
     
@@ -136,7 +143,11 @@ public:
     
 private:
     mutable std::mutex config_mutex_;
+#ifdef HAS_NLOHMANN_JSON
     nlohmann::json config_json_;
+#else
+    std::unordered_map<std::string, std::string> config_map_;
+#endif
     std::string config_file_path_;
     std::time_t last_modified_time_;
     bool hot_reload_enabled_;
@@ -150,7 +161,11 @@ private:
     std::atomic<bool> file_watcher_running_;
     
     // Change callbacks
+#ifndef HAS_NLOHMANN_JSON
+    // When JSON is not available, callbacks are not supported
+#else
     std::unordered_map<std::string, ConfigChangeCallback> change_callbacks_;
+#endif
     
     // Private helper methods
     bool load_json_config(const std::string& file_path);
@@ -158,11 +173,14 @@ private:
     bool save_json_config(const std::string& file_path) const;
     bool save_encrypted_config(const std::string& file_path) const;
     
+#ifdef HAS_NLOHMANN_JSON
     nlohmann::json decrypt_config_section(const nlohmann::json& encrypted_section) const;
     nlohmann::json encrypt_config_section(const nlohmann::json& plain_section) const;
     
-    void apply_env_overrides();
     void notify_config_change(const std::string& section, const nlohmann::json& new_value);
+#endif
+    
+    void apply_env_overrides();
     
     // Configuration validation helpers
     bool validate_exchange_config(const types::ExchangeConfig& config, std::vector<std::string>& errors) const;
@@ -170,6 +188,7 @@ private:
     bool validate_risk_config(const types::RiskConfig& config, std::vector<std::string>& errors) const;
     bool validate_database_config(const DatabaseConfig& config, std::vector<std::string>& errors) const;
     
+#ifdef HAS_NLOHMANN_JSON
     // JSON conversion helpers
     types::ExchangeConfig json_to_exchange_config(const nlohmann::json& json) const;
     nlohmann::json exchange_config_to_json(const types::ExchangeConfig& config) const;
@@ -182,12 +201,15 @@ private:
     
     DatabaseConfig json_to_database_config(const nlohmann::json& json) const;
     nlohmann::json database_config_to_json(const DatabaseConfig& config) const;
+#endif
     
+#ifdef HAS_NLOHMANN_JSON
     MonitoringConfig json_to_monitoring_config(const nlohmann::json& json) const;
     nlohmann::json monitoring_config_to_json(const MonitoringConfig& config) const;
     
     SecurityConfig json_to_security_config(const nlohmann::json& json) const;
     nlohmann::json security_config_to_json(const SecurityConfig& config) const;
+#endif
     
     // File watching implementation
     void file_watcher_loop();
@@ -200,6 +222,7 @@ private:
 // Template implementation
 template<typename T>
 T ConfigManager::get_value(const std::string& key, const T& default_value) const {
+#ifdef HAS_NLOHMANN_JSON
     std::lock_guard<std::mutex> lock(config_mutex_);
     
     // Split key by dots for nested access
@@ -224,10 +247,14 @@ T ConfigManager::get_value(const std::string& key, const T& default_value) const
     } catch (const std::exception&) {
         return default_value;
     }
+#else
+    return default_value;
+#endif
 }
 
 template<typename T>
 void ConfigManager::set_value(const std::string& key, const T& value) {
+#ifdef HAS_NLOHMANN_JSON
     std::lock_guard<std::mutex> lock(config_mutex_);
     
     // Split key by dots for nested access
@@ -250,6 +277,9 @@ void ConfigManager::set_value(const std::string& key, const T& value) {
     
     // Notify change
     notify_config_change(keys[0], config_json_[keys[0]]);
+#else
+    utils::Logger::warn("JSON functionality disabled - config value setting not supported");
+#endif
 }
 
 } // namespace config

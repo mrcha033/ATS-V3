@@ -1,5 +1,5 @@
-#include "../include/rbac_manager.hpp"
-#include "../../utils/logger.hpp"
+#include "rbac_manager.hpp"
+#include "utils/logger.hpp"
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -18,7 +18,7 @@ RbacManager::~RbacManager() = default;
 
 bool RbacManager::initialize(std::shared_ptr<CryptoManager> crypto_manager) {
     if (!crypto_manager) {
-        LOG_ERROR("CryptoManager is null");
+        utils::Logger::error("CryptoManager is null");
         return false;
     }
     
@@ -39,11 +39,11 @@ bool RbacManager::initialize(std::shared_ptr<CryptoManager> crypto_manager) {
             initialize_default_roles_and_permissions();
         }
         
-        LOG_INFO("RbacManager initialized successfully");
+        utils::Logger::info("RbacManager initialized successfully");
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to initialize RbacManager: {}", e.what());
+        utils::Logger::error("Failed to initialize RbacManager: {}", e.what());
         return false;
     }
 }
@@ -133,14 +133,14 @@ bool RbacManager::initialize_default_roles_and_permissions() {
             admin_user.password_hash = hash_password("admin123", generate_salt());
             
             create_user(admin_user);
-            LOG_INFO("Created default admin user (username: admin, password: admin123)");
+            utils::Logger::info("Created default admin user (username: admin, password: admin123)");
         }
         
-        LOG_INFO("Initialized default RBAC roles and permissions");
+        utils::Logger::info("Initialized default RBAC roles and permissions");
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to initialize default RBAC data: {}", e.what());
+        utils::Logger::error("Failed to initialize default RBAC data: {}", e.what());
         return false;
     }
 }
@@ -148,18 +148,18 @@ bool RbacManager::initialize_default_roles_and_permissions() {
 bool RbacManager::create_permission(const Permission& permission) {
     try {
         if (permissions_cache_.find(permission.permission_id) != permissions_cache_.end()) {
-            LOG_WARNING("Permission already exists: {}", permission.permission_id);
+            utils::Logger::warn("Permission already exists: {}", permission.permission_id);
             return false;
         }
         
         permissions_cache_[permission.permission_id] = permission;
         save_permissions_to_file();
         
-        LOG_INFO("Created permission: {} ({})", permission.permission_id, permission.name);
+        utils::Logger::info("Created permission: {} ({})", permission.permission_id, permission.name);
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to create permission {}: {}", permission.permission_id, e.what());
+        utils::Logger::error("Failed to create permission {}: {}", permission.permission_id, e.what());
         return false;
     }
 }
@@ -167,14 +167,14 @@ bool RbacManager::create_permission(const Permission& permission) {
 bool RbacManager::create_role(const Role& role) {
     try {
         if (roles_cache_.find(role.role_id) != roles_cache_.end()) {
-            LOG_WARNING("Role already exists: {}", role.role_id);
+            utils::Logger::warn("Role already exists: {}", role.role_id);
             return false;
         }
         
         // Validate that all permissions exist
         for (const auto& perm_id : role.permission_ids) {
             if (permissions_cache_.find(perm_id) == permissions_cache_.end()) {
-                LOG_ERROR("Permission {} does not exist for role {}", perm_id, role.role_id);
+                utils::Logger::error("Permission {} does not exist for role {}", perm_id, role.role_id);
                 return false;
             }
         }
@@ -182,12 +182,12 @@ bool RbacManager::create_role(const Role& role) {
         roles_cache_[role.role_id] = role;
         save_roles_to_file();
         
-        LOG_INFO("Created role: {} ({}) with {} permissions", 
+        utils::Logger::info("Created role: {} ({}) with {} permissions", 
                 role.role_id, role.name, role.permission_ids.size());
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to create role {}: {}", role.role_id, e.what());
+        utils::Logger::error("Failed to create role {}: {}", role.role_id, e.what());
         return false;
     }
 }
@@ -195,14 +195,14 @@ bool RbacManager::create_role(const Role& role) {
 bool RbacManager::create_user(const User& user) {
     try {
         if (users_cache_.find(user.user_id) != users_cache_.end()) {
-            LOG_WARNING("User already exists: {}", user.user_id);
+            utils::Logger::warn("User already exists: {}", user.user_id);
             return false;
         }
         
         // Check for duplicate username
         for (const auto& [id, existing_user] : users_cache_) {
             if (existing_user.username == user.username) {
-                LOG_ERROR("Username already exists: {}", user.username);
+                utils::Logger::error("Username already exists: {}", user.username);
                 return false;
             }
         }
@@ -210,7 +210,7 @@ bool RbacManager::create_user(const User& user) {
         // Validate that all roles exist
         for (const auto& role_id : user.role_ids) {
             if (roles_cache_.find(role_id) == roles_cache_.end()) {
-                LOG_ERROR("Role {} does not exist for user {}", role_id, user.user_id);
+                utils::Logger::error("Role {} does not exist for user {}", role_id, user.user_id);
                 return false;
             }
         }
@@ -218,12 +218,12 @@ bool RbacManager::create_user(const User& user) {
         users_cache_[user.user_id] = user;
         save_users_to_file();
         
-        LOG_INFO("Created user: {} ({}) with {} roles", 
+        utils::Logger::info("Created user: {} ({}) with {} roles", 
                 user.user_id, user.username, user.role_ids.size());
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to create user {}: {}", user.user_id, e.what());
+        utils::Logger::error("Failed to create user {}: {}", user.user_id, e.what());
         return false;
     }
 }
@@ -257,7 +257,7 @@ bool RbacManager::user_has_permission(const std::string& user_id, const std::str
         return false;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error checking user permission for {} / {}: {}", user_id, permission_id, e.what());
+        utils::Logger::error("Error checking user permission for {} / {}: {}", user_id, permission_id, e.what());
         return false;
     }
 }
@@ -285,7 +285,7 @@ bool RbacManager::check_access(const AccessContext& context) {
         }
         
         if (required_permission.empty()) {
-            LOG_WARNING("No permission found for resource_type: {} action: {}", 
+            utils::Logger::warn("No permission found for resource_type: {} action: {}", 
                        context.resource_type, context.action);
             return false;
         }
@@ -303,7 +303,7 @@ bool RbacManager::check_access(const AccessContext& context) {
         return access_granted;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error checking access for user {}: {}", context.user_id, e.what());
+        utils::Logger::error("Error checking access for user {}: {}", context.user_id, e.what());
         return false;
     }
 }
@@ -315,7 +315,7 @@ std::string RbacManager::create_user_session(const std::string& user_id,
     try {
         auto user_it = users_cache_.find(user_id);
         if (user_it == users_cache_.end() || !user_it->second.is_active) {
-            LOG_ERROR("Cannot create session for invalid user: {}", user_id);
+            utils::Logger::error("Cannot create session for invalid user: {}", user_id);
             return "";
         }
         
@@ -337,11 +337,11 @@ std::string RbacManager::create_user_session(const std::string& user_id,
         users_cache_[user_id].last_login = std::chrono::system_clock::now();
         save_users_to_file();
         
-        LOG_INFO("Created session {} for user {}", session.session_id, user_id);
+        utils::Logger::info("Created session {} for user {}", session.session_id, user_id);
         return session.session_id;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to create session for user {}: {}", user_id, e.what());
+        utils::Logger::error("Failed to create session for user {}: {}", user_id, e.what());
         return "";
     }
 }
@@ -361,7 +361,7 @@ bool RbacManager::validate_user_session(const std::string& session_id) {
             if (session.is_active) {
                 session.is_active = false;
                 save_sessions_to_file();
-                LOG_INFO("Session {} expired", session_id);
+                utils::Logger::info("Session {} expired", session_id);
             }
             return false;
         }
@@ -371,14 +371,14 @@ bool RbacManager::validate_user_session(const std::string& session_id) {
         if (user_it == users_cache_.end() || !user_it->second.is_active) {
             session.is_active = false;
             save_sessions_to_file();
-            LOG_INFO("Session {} invalidated - user inactive", session_id);
+            utils::Logger::info("Session {} invalidated - user inactive", session_id);
             return false;
         }
         
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error validating session {}: {}", session_id, e.what());
+        utils::Logger::error("Error validating session {}: {}", session_id, e.what());
         return false;
     }
 }
@@ -387,12 +387,12 @@ void RbacManager::log_access_attempt(const AccessLog& log) {
     try {
         // For now, just log to system logger
         // In production, this would go to a dedicated audit database
-        LOG_INFO("ACCESS_LOG: user={} action={} resource={}:{} granted={} reason={} ip={}", 
+        utils::Logger::info("ACCESS_LOG: user={} action={} resource={}:{} granted={} reason={} ip={}", 
                 log.user_id, log.action, log.resource_type, log.resource_id, 
                 log.access_granted, log.reason, log.client_ip);
                 
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to log access attempt: {}", e.what());
+        utils::Logger::error("Failed to log access attempt: {}", e.what());
     }
 }
 
@@ -449,13 +449,13 @@ bool RbacManager::save_permissions_to_file() {
         
         auto encrypted = crypto_manager_->encrypt_aes256_gcm(data_stream.str(), "rbac_permissions");
         if (!encrypted.success) {
-            LOG_ERROR("Failed to encrypt permissions data");
+            utils::Logger::error("Failed to encrypt permissions data");
             return false;
         }
         
         std::ofstream file(file_path, std::ios::binary);
         if (!file) {
-            LOG_ERROR("Failed to open permissions file for writing: {}", file_path);
+            utils::Logger::error("Failed to open permissions file for writing: {}", file_path);
             return false;
         }
         
@@ -466,7 +466,7 @@ bool RbacManager::save_permissions_to_file() {
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to save permissions to file: {}", e.what());
+        utils::Logger::error("Failed to save permissions to file: {}", e.what());
         return false;
     }
 }
@@ -476,13 +476,13 @@ bool RbacManager::load_permissions_from_file() {
         std::string file_path = storage_path_ + "permissions.dat";
         
         if (!std::filesystem::exists(file_path)) {
-            LOG_INFO("Permissions file does not exist, starting with empty permissions");
+            utils::Logger::info("Permissions file does not exist, starting with empty permissions");
             return true;
         }
         
         std::ifstream file(file_path, std::ios::binary);
         if (!file) {
-            LOG_ERROR("Failed to open permissions file for reading: {}", file_path);
+            utils::Logger::error("Failed to open permissions file for reading: {}", file_path);
             return false;
         }
         
@@ -504,7 +504,7 @@ bool RbacManager::load_permissions_from_file() {
         // Decrypt data
         std::string decrypted = crypto_manager_->decrypt_aes256_gcm(encrypted_data, iv, tag, "rbac_permissions");
         if (decrypted.empty()) {
-            LOG_ERROR("Failed to decrypt permissions data");
+            utils::Logger::error("Failed to decrypt permissions data");
             return false;
         }
         
@@ -537,11 +537,11 @@ bool RbacManager::load_permissions_from_file() {
             permissions_cache_[perm.permission_id] = perm;
         }
         
-        LOG_INFO("Loaded {} permissions from file", permissions_cache_.size());
+        utils::Logger::info("Loaded {} permissions from file", permissions_cache_.size());
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to load permissions from file: {}", e.what());
+        utils::Logger::error("Failed to load permissions from file: {}", e.what());
         return false;
     }
 }
@@ -597,7 +597,7 @@ bool RbacMiddleware::check_user_permission(const std::string& session_id,
                                           const std::string& resource_id) {
     try {
         if (!rbac_manager_->validate_user_session(session_id)) {
-            LOG_WARNING("Invalid session for permission check: {}", session_id);
+            utils::Logger::warn("Invalid session for permission check: {}", session_id);
             return false;
         }
         
@@ -609,7 +609,7 @@ bool RbacMiddleware::check_user_permission(const std::string& session_id,
         return rbac_manager_->user_has_permission(user_id, required_permission);
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error checking user permission: {}", e.what());
+        utils::Logger::error("Error checking user permission: {}", e.what());
         return false;
     }
 }
@@ -629,7 +629,7 @@ bool RbacMiddleware::authorize_trading_action(const std::string& session_id,
     } else if (action == "view_positions") {
         required_permission = "perm_trading_view";
     } else {
-        LOG_ERROR("Unknown trading action: {}", action);
+        utils::Logger::error("Unknown trading action: {}", action);
         return false;
     }
     

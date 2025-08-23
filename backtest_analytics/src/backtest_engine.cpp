@@ -1,5 +1,5 @@
 #include "../include/backtest_engine.hpp"
-#include "../../shared/include/utils/logger.hpp"
+#include "utils/logger.hpp"
 #include <algorithm>
 #include <execution>
 #include <future>
@@ -7,6 +7,9 @@
 
 namespace ats {
 namespace backtest {
+
+// Import Logger from utils namespace
+using ats::utils::Logger;
 
 // BacktestEngine Implementation
 BacktestEngine::BacktestEngine() {
@@ -49,7 +52,7 @@ void BacktestEngine::set_config(const BacktestConfig& config) {
     }
     
     config_ = config;
-    LOG_INFO("Backtest configuration updated");
+    Logger::info("Backtest configuration updated");
 }
 
 BacktestConfig BacktestEngine::get_config() const {
@@ -62,7 +65,7 @@ void BacktestEngine::add_strategy(std::shared_ptr<BacktestStrategy> strategy) {
     }
     
     strategies_.push_back(strategy);
-    LOG_INFO("Added strategy: {}", strategy->get_strategy_name());
+    Logger::info("Added strategy: {}", strategy->get_strategy_name());
 }
 
 void BacktestEngine::remove_strategy(const std::string& strategy_name) {
@@ -73,7 +76,7 @@ void BacktestEngine::remove_strategy(const std::string& strategy_name) {
     
     if (it != strategies_.end()) {
         strategies_.erase(it, strategies_.end());
-        LOG_INFO("Removed strategy: {}", strategy_name);
+        Logger::info("Removed strategy: {}", strategy_name);
     }
 }
 
@@ -87,13 +90,13 @@ std::vector<std::string> BacktestEngine::get_strategy_names() const {
 
 void BacktestEngine::set_data_loader(std::shared_ptr<DataLoader> data_loader) {
     data_loader_ = data_loader;
-    LOG_INFO("Data loader set");
+    Logger::info("Data loader set");
 }
 
 bool BacktestEngine::load_market_data(const std::vector<std::string>& symbols,
                                      const std::vector<std::string>& exchanges) {
     if (!data_loader_) {
-        LOG_ERROR("Data loader not set");
+        Logger::error("Data loader not set");
         return false;
     }
     
@@ -102,7 +105,7 @@ bool BacktestEngine::load_market_data(const std::vector<std::string>& symbols,
     
     if (success) {
         preprocess_market_data();
-        LOG_INFO("Loaded {} market data points", market_data_.size());
+        Logger::info("Loaded {} market data points", market_data_.size());
     }
     
     return success;
@@ -190,7 +193,7 @@ BacktestResult BacktestEngine::execute_single_threaded() {
                     }
                     
                 } catch (const std::exception& e) {
-                    LOG_WARNING("Strategy {} error: {}", strategy->get_strategy_name(), e.what());
+                    Logger::warn("Strategy {} error: {}", strategy->get_strategy_name(), e.what());
                     result.warnings.push_back("Strategy error: " + std::string(e.what()));
                 }
             }
@@ -267,12 +270,12 @@ BacktestResult BacktestEngine::execute_single_threaded() {
             result.data_quality = data_loader_->analyze_data_quality(market_data_);
         }
         
-        LOG_INFO("Backtest completed: {} trades, {:.2f}% total return, execution time: {}ms",
+        Logger::info("Backtest completed: {} trades, {:.2f}% total return, execution time: {}ms",
                  result.trades.size(), result.performance.total_return, result.execution_time.count());
         
     } catch (const std::exception& e) {
         result.errors.push_back("Backtest execution error: " + std::string(e.what()));
-        LOG_ERROR("Backtest execution failed: {}", e.what());
+        Logger::error("Backtest execution failed: {}", e.what());
     }
     
     is_running_ = false;
@@ -282,7 +285,7 @@ BacktestResult BacktestEngine::execute_single_threaded() {
 BacktestResult BacktestEngine::execute_multi_threaded() {
     // For now, delegate to single-threaded implementation
     // Multi-threading implementation would require more complex synchronization
-    LOG_INFO("Multi-threaded execution requested, using single-threaded for stability");
+    Logger::info("Multi-threaded execution requested, using single-threaded for stability");
     return execute_single_threaded();
 }
 
@@ -304,7 +307,7 @@ bool BacktestEngine::execute_signal(const TradeSignal& signal,
         }
         
         // Apply slippage and costs
-        double execution_price = apply_slippage(signal.target_price, signal.signal_type);
+        double execution_price = apply_slippage(signal.price, signal.type);
         double trade_value = position_size * execution_price;
         double transaction_costs = calculate_transaction_costs(trade_value);
         
@@ -315,13 +318,10 @@ bool BacktestEngine::execute_signal(const TradeSignal& signal,
         }
         
         // Execute the trade
-        if (signal.signal_type == "buy" || signal.signal_type == "long") {
+        using ats::types::SignalType;
+        if (signal.type == SignalType::BUY) {
             // Open long position
-            Position position(signal.symbol, signal.exchange, "long", 
-                            position_size, execution_price, signal.timestamp);
-            position.stop_loss = signal.stop_loss;
-            position.take_profit = signal.take_profit;
-            position.strategy_name = ""; // Would be set by strategy
+            Position position("default_exchange", signal.symbol, signal.quantity, signal.price);
             
             context.positions.push_back(position);
             context.available_capital -= (trade_value + transaction_costs);
@@ -330,21 +330,20 @@ bool BacktestEngine::execute_signal(const TradeSignal& signal,
                 log_trade_execution(signal, nullptr);
             }
             
-        } else if (signal.signal_type == "sell" || signal.signal_type == "short") {
+        } else if (signal.type == SignalType::SELL) {
             // Look for existing long position to close or open short position
             auto pos_it = std::find_if(context.positions.begin(), context.positions.end(),
                 [&signal](const Position& pos) {
-                    return pos.symbol == signal.symbol && pos.exchange == signal.exchange && pos.side == "long";
+                    return pos.symbol == signal.symbol;
                 });
             
             if (pos_it != context.positions.end()) {
                 // Close long position
                 TradeResult trade;
-                trade.entry_time = pos_it->entry_time;
+                trade.entry_time = pos_it->opened_at;
                 trade.exit_time = signal.timestamp;
                 trade.symbol = signal.symbol;
-                trade.exchange = signal.exchange;
-                trade.entry_price = pos_it->entry_price;
+                trade.entry_price = pos_it->avg_price;
                 trade.exit_price = execution_price;
                 trade.quantity = pos_it->quantity;
                 trade.side = "long";
@@ -356,31 +355,25 @@ bool BacktestEngine::execute_signal(const TradeSignal& signal,
                 context.positions.erase(pos_it);
                 
             } else if (config_.allow_short_selling) {
-                // Open short position
-                Position position(signal.symbol, signal.exchange, "short", 
-                                position_size, execution_price, signal.timestamp);
-                position.stop_loss = signal.stop_loss;
-                position.take_profit = signal.take_profit;
+                // Open short position - simplified implementation
+                Position position("default_exchange", signal.symbol, signal.quantity, signal.price);
                 
                 context.positions.push_back(position);
                 context.available_capital -= transaction_costs; // Only costs for short
             }
         }
         
-        // Update total portfolio value
+        // Update total portfolio value - simplified
         context.total_portfolio_value = context.available_capital;
         for (const auto& position : context.positions) {
-            if (position.side == "long") {
-                context.total_portfolio_value += position.quantity * market_data.close_price;
-            }
-            // Short positions would be calculated differently
+            context.total_portfolio_value += position.quantity * market_data.close_price;
         }
         
         context.processed_signals++;
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to execute signal: {}", e.what());
+        Logger::error("Failed to execute signal: {}", e.what());
         return false;
     }
 }
@@ -455,16 +448,17 @@ void BacktestEngine::check_stop_losses_and_take_profits(const MarketDataPoint& m
 
 double BacktestEngine::calculate_position_size(const TradeSignal& signal, double available_capital) {
     double max_position_value = available_capital * config_.max_position_size;
-    double position_value = std::min(max_position_value, signal.target_price * 1000.0); // Default quantity logic
-    return position_value / signal.target_price;
+    double position_value = std::min(max_position_value, signal.price * 1000.0); // Default quantity logic
+    return position_value / signal.price;
 }
 
 double BacktestEngine::calculate_transaction_costs(double trade_value) {
     return trade_value * (config_.commission_rate + config_.spread_cost);
 }
 
-double BacktestEngine::apply_slippage(double target_price, const std::string& side) {
-    double slippage_factor = 1.0 + (side == "buy" ? config_.slippage_rate : -config_.slippage_rate);
+double BacktestEngine::apply_slippage(double target_price, ats::types::SignalType signal_type) {
+    using ats::types::SignalType;
+    double slippage_factor = 1.0 + (signal_type == SignalType::BUY ? config_.slippage_rate : -config_.slippage_rate);
     return target_price * slippage_factor;
 }
 
@@ -483,7 +477,7 @@ bool BacktestEngine::check_risk_limits(const TradeSignal& signal, const Executio
 }
 
 bool BacktestEngine::exceeds_position_limit(const TradeSignal& signal, const ExecutionContext& context) {
-    double position_value = signal.target_price * 1000.0; // Simplified calculation
+    double position_value = signal.price * 1000.0; // Simplified calculation
     double max_position_value = context.total_portfolio_value * config_.max_position_size;
     return position_value > max_position_value;
 }
@@ -495,7 +489,7 @@ bool BacktestEngine::exceeds_exposure_limit(const TradeSignal& signal, const Exe
     }
     
     double max_exposure = context.total_portfolio_value * config_.max_total_exposure;
-    double new_position_value = signal.target_price * 1000.0; // Simplified calculation
+    double new_position_value = signal.price * 1000.0; // Simplified calculation
     
     return (current_exposure + new_position_value) > max_exposure;
 }
@@ -515,7 +509,7 @@ void BacktestEngine::preprocess_market_data() {
         symbol_data_[data_point.symbol].push_back(data_point);
     }
     
-    LOG_INFO("Preprocessed {} data points for {} symbols", 
+    Logger::info("Preprocessed {} data points for {} symbols", 
              market_data_.size(), symbol_data_.size());
 }
 
@@ -564,17 +558,17 @@ std::chrono::milliseconds BacktestEngine::estimate_remaining_time(double progres
 
 bool BacktestEngine::validate_config() const {
     if (config_.initial_capital <= 0.0) {
-        LOG_ERROR("Initial capital must be positive");
+        Logger::error("Initial capital must be positive");
         return false;
     }
     
     if (config_.max_position_size <= 0.0 || config_.max_position_size > 1.0) {
-        LOG_ERROR("Max position size must be between 0 and 1");
+        Logger::error("Max position size must be between 0 and 1");
         return false;
     }
     
     if (config_.max_total_exposure <= 0.0 || config_.max_total_exposure > 1.0) {
-        LOG_ERROR("Max total exposure must be between 0 and 1");
+        Logger::error("Max total exposure must be between 0 and 1");
         return false;
     }
     
@@ -583,13 +577,13 @@ bool BacktestEngine::validate_config() const {
 
 bool BacktestEngine::validate_data_integrity() {
     if (market_data_.empty()) {
-        LOG_ERROR("No market data available for backtesting");
+        Logger::error("No market data available for backtesting");
         return false;
     }
     
     // Check for sufficient data points
     if (market_data_.size() < 100) {
-        LOG_WARNING("Limited market data available: {} points", market_data_.size());
+        Logger::warn("Limited market data available: {} points", market_data_.size());
     }
     
     return true;
@@ -597,13 +591,13 @@ bool BacktestEngine::validate_data_integrity() {
 
 bool BacktestEngine::validate_strategies() const {
     if (strategies_.empty()) {
-        LOG_ERROR("No strategies configured for backtesting");
+        Logger::error("No strategies configured for backtesting");
         return false;
     }
     
     for (const auto& strategy : strategies_) {
         if (!strategy) {
-            LOG_ERROR("Null strategy found");
+            Logger::error("Null strategy found");
             return false;
         }
     }
@@ -613,14 +607,14 @@ bool BacktestEngine::validate_strategies() const {
 
 void BacktestEngine::log_trade_execution(const TradeSignal& signal, const TradeResult* result) {
     if (config_.detailed_logging) {
-        LOG_DEBUG("Signal executed: {} {} {} @ {}", 
-                  signal.signal_type, signal.symbol, signal.exchange, signal.target_price);
+        Logger::debug("Signal executed: {} {} @ {}", 
+                  static_cast<int>(signal.type), signal.symbol, signal.price);
     }
 }
 
 void BacktestEngine::log_position_update(const Position& position, const MarketDataPoint& data) {
     if (config_.detailed_logging) {
-        LOG_DEBUG("Position updated: {} {} P&L: {}", 
+        Logger::debug("Position updated: {} {} P&L: {}", 
                   position.symbol, position.side, position.unrealized_pnl);
     }
 }
@@ -652,7 +646,7 @@ bool ArbitrageStrategy::initialize(const std::unordered_map<std::string, std::st
         max_hold_time_ = std::chrono::milliseconds(std::stoll(it->second));
     }
     
-    LOG_INFO("ArbitrageStrategy initialized with min_spread: {}, max_position: {}", 
+    Logger::info("ArbitrageStrategy initialized with min_spread: {}, max_position: {}", 
              min_spread_threshold_, max_position_size_);
     
     return true;

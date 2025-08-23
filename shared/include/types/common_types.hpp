@@ -55,19 +55,69 @@ enum class TimeInForce {
     FOK   // Fill Or Kill
 };
 
+// Connection status for exchanges
+enum class ConnectionStatus {
+    DISCONNECTED,
+    CONNECTING,
+    CONNECTED,
+    RECONNECTING,
+    ERROR
+};
+
+// Order book entry
+struct OrderBookEntry {
+    Price price;
+    Quantity quantity;
+    
+    OrderBookEntry() = default;
+    OrderBookEntry(Price p, Quantity q) : price(p), quantity(q) {}
+};
+
+// Order book structure
+struct OrderBook {
+    Symbol symbol;
+    ExchangeId exchange;
+    std::vector<OrderBookEntry> bids;  // Sorted by price descending
+    std::vector<OrderBookEntry> asks;  // Sorted by price ascending
+    Timestamp timestamp;
+    
+    OrderBook() = default;
+    OrderBook(const Symbol& sym, const ExchangeId& ex)
+        : symbol(sym), exchange(ex) {
+        timestamp = std::chrono::system_clock::now();
+    }
+};
+
+// Order result structure
+struct OrderResult {
+    bool success;
+    std::string message;
+    OrderId order_id;
+    OrderStatus status;
+    Quantity filled_quantity;
+    Price avg_fill_price;
+    
+    OrderResult() : success(false), status(OrderStatus::REJECTED), filled_quantity(0.0), avg_fill_price(0.0) {}
+    OrderResult(bool s, const std::string& msg, const OrderId& id)
+        : success(s), message(msg), order_id(id), status(s ? OrderStatus::OPEN : OrderStatus::REJECTED),
+          filled_quantity(0.0), avg_fill_price(0.0) {}
+};
+
 // Market data structure
 struct Ticker {
     Symbol symbol;
     ExchangeId exchange;
     Price bid;
     Price ask;
-    Price last;
+    Price price;  // Current/last price
+    Price last;   // Last trade price
+    Volume volume;
     Volume volume_24h;
-    Timestamp timestamp;
+    int64_t timestamp;  // Unix timestamp in milliseconds
     
     Ticker() = default;
-    Ticker(const Symbol& sym, const ExchangeId& ex, Price b, Price a, Price l, Volume v, Timestamp ts)
-        : symbol(sym), exchange(ex), bid(b), ask(a), last(l), volume_24h(v), timestamp(ts) {}
+    Ticker(const Symbol& sym, const ExchangeId& ex, Price b, Price a, Price l, Volume v, int64_t ts)
+        : symbol(sym), exchange(ex), bid(b), ask(a), price(l), last(l), volume(v), volume_24h(v), timestamp(ts) {}
 };
 
 // Order structure
@@ -108,14 +158,16 @@ struct Trade {
     Price price;
     Amount fee;
     Currency fee_currency;
-    Timestamp timestamp;
+    int64_t timestamp;  // Unix timestamp in milliseconds
+    bool is_buyer_maker;
     
-    Trade() = default;
+    Trade() : is_buyer_maker(false) {}
     Trade(const TradeId& trade_id, const OrderId& order_id, const ExchangeId& ex,
           const Symbol& sym, OrderSide s, Quantity qty, Price p, Amount f, const Currency& fc)
         : id(trade_id), order_id(order_id), exchange(ex), symbol(sym), side(s),
-          quantity(qty), price(p), fee(f), fee_currency(fc) {
-        timestamp = std::chrono::system_clock::now();
+          quantity(qty), price(p), fee(f), fee_currency(fc), is_buyer_maker(false) {
+        timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
     }
 };
 
@@ -139,19 +191,40 @@ struct Balance {
 struct Position {
     ExchangeId exchange;
     Symbol symbol;
+    std::string side;
     Quantity quantity;
     Price avg_price;
+    Price entry_price;
+    Timestamp entry_time;
     Amount unrealized_pnl;
     Amount realized_pnl;
     Timestamp opened_at;
     Timestamp updated_at;
-    
+    Price stop_loss;
+    Price take_profit;
+
+    void update_unrealized_pnl(Price current_price) {
+        if (side == "long") {
+            unrealized_pnl = (current_price - avg_price) * quantity;
+        } else if (side == "short") {
+            unrealized_pnl = (avg_price - current_price) * quantity;
+        }
+        updated_at = std::chrono::system_clock::now();
+    }
+
     Position() = default;
     Position(const ExchangeId& ex, const Symbol& sym, Quantity qty, Price avg_p)
         : exchange(ex), symbol(sym), quantity(qty), avg_price(avg_p),
           unrealized_pnl(0.0), realized_pnl(0.0) {
         opened_at = std::chrono::system_clock::now();
         updated_at = opened_at;
+    }
+    Position(const ExchangeId& ex, const Symbol& sym, const std::string& s, Quantity qty, Price price)
+        : exchange(ex), symbol(sym), side(s), quantity(qty), avg_price(price), entry_price(price),
+          unrealized_pnl(0.0), realized_pnl(0.0), stop_loss(0.0), take_profit(0.0) {
+        opened_at = std::chrono::system_clock::now();
+        updated_at = opened_at;
+        entry_time = opened_at;
     }
 };
 
@@ -223,6 +296,45 @@ struct MarketSnapshot {
     }
 };
 
+// Trade signal structure for backtesting
+enum class SignalType {
+    BUY,
+    SELL,
+    HOLD,
+    CLOSE_LONG,
+    CLOSE_SHORT
+};
+
+struct TradeSignal {
+    Symbol symbol;
+    ExchangeId exchange;
+    SignalType type;
+    Price price;
+    Quantity quantity;
+    double confidence;
+    std::string reason;
+    Timestamp timestamp;
+    std::unordered_map<std::string, std::string> metadata;
+    
+    TradeSignal() : confidence(0.0) {
+        timestamp = std::chrono::system_clock::now();
+    }
+    
+    TradeSignal(const Symbol& sym, SignalType t, Price p, Quantity qty, double conf, const std::string& r)
+        : symbol(sym), type(t), price(p), quantity(qty), confidence(conf), reason(r) {
+        timestamp = std::chrono::system_clock::now();
+    }
+
+    TradeSignal(Timestamp ts, const Symbol& sym, const ExchangeId& ex, const std::string& s, Price p)
+        : timestamp(ts), symbol(sym), exchange(ex), price(p), quantity(0.0), confidence(0.0) {
+        if (s == "buy") {
+            type = SignalType::BUY;
+        } else if (s == "sell") {
+            type = SignalType::SELL;
+        }
+    }
+};
+
 // Configuration types
 struct ExchangeConfig {
     ExchangeId id;
@@ -230,12 +342,14 @@ struct ExchangeConfig {
     std::string api_key;
     std::string secret_key;
     std::string passphrase;  // for some exchanges
+    bool enabled;
     bool sandbox_mode;
     int rate_limit;
     int timeout_ms;
     std::vector<Symbol> supported_symbols;
+    std::unordered_map<std::string, std::string> parameters;  // Additional configuration parameters
     
-    ExchangeConfig() : sandbox_mode(false), rate_limit(1000), timeout_ms(5000) {}
+    ExchangeConfig() : enabled(true), sandbox_mode(false), rate_limit(1000), timeout_ms(5000) {}
 };
 
 struct TradingConfig {

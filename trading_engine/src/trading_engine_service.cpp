@@ -6,6 +6,20 @@
 #include <algorithm>
 #include <sstream>
 #include <iomanip>
+#include <fstream>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <psapi.h>
+#elif defined(__linux__)
+#include <sys/resource.h>
+#include <fstream>
+#include <sstream>
+#elif defined(__APPLE__)
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#include <mach/mach.h>
+#endif
 
 namespace ats {
 namespace trading_engine {
@@ -54,6 +68,10 @@ bool TradingEngineService::initialize(const config::ConfigManager& config) {
             return false;
         }
         
+        // Initialize Prometheus exporter
+        int metrics_port = config.get_value<int>("trading_engine.metrics_port", 8082);
+        prometheus_exporter_ = std::make_unique<monitoring::PrometheusExporter>("trading-engine", metrics_port);
+        
         // Initialize trade logger
         trade_logger_ = std::make_unique<TradeLogger>();
         std::string influxdb_url = config.get_value<std::string>("influxdb.url", "http://localhost:8086");
@@ -98,6 +116,10 @@ bool TradingEngineService::start() {
     try {
         running_ = true;
         emergency_stopped_ = false;
+        
+        // Start Prometheus metrics exporter
+        prometheus_exporter_->start();
+        prometheus_exporter_->set_health_status(true);
         
         // Start core components
         if (!redis_subscriber_->start()) {
@@ -146,6 +168,12 @@ void TradingEngineService::stop() {
     }
     
     utils::Logger::info("Stopping TradingEngineService...");
+    
+    // Stop Prometheus exporter
+    if (prometheus_exporter_) {
+        prometheus_exporter_->set_health_status(false);
+        prometheus_exporter_->stop();
+    }
     
     running_ = false;
     queue_condition_.notify_all();
@@ -547,6 +575,11 @@ void TradingEngineService::on_arbitrage_opportunity_detected(const ArbitrageOppo
         trade_logger_->log_arbitrage_opportunity(opportunity);
     }
     
+    // Update Prometheus metrics
+    if (prometheus_exporter_) {
+        prometheus_exporter_->increment_arbitrage_opportunities(opportunity.symbol);
+    }
+    
     // Execute if profitable and within limits
     if (opportunity.expected_profit > 0 && 
         opportunity.spread_percentage >= config_.min_spread_threshold) {
@@ -561,8 +594,22 @@ void TradingEngineService::on_trade_execution_completed(const TradeExecution& ex
     if (execution.result == ExecutionResult::SUCCESS) {
         statistics_.total_successful_trades++;
         statistics_.total_profit_loss += execution.actual_profit;
+        
+        // Update Prometheus metrics for successful trade
+        if (prometheus_exporter_) {
+            prometheus_exporter_->increment_successful_trades();
+            prometheus_exporter_->record_profit_per_trade(execution.actual_profit);
+            prometheus_exporter_->record_order_latency(execution.buy_exchange, execution.execution_latency.count());
+            prometheus_exporter_->record_order_latency(execution.sell_exchange, execution.execution_latency.count());
+            prometheus_exporter_->set_total_pnl(statistics_.total_profit_loss.load());
+        }
     } else {
         statistics_.total_failed_trades++;
+        
+        // Update Prometheus metrics for failed trade
+        if (prometheus_exporter_) {
+            prometheus_exporter_->increment_failed_trades();
+        }
         
         if (config_.enable_rollback_on_failure) {
             // Trigger rollback logic
@@ -689,6 +736,11 @@ void TradingEngineService::statistics_thread_main() {
         
         if (running_) {
             update_statistics();
+            
+            // Update system metrics for Prometheus
+            if (prometheus_exporter_) {
+                collect_system_metrics();
+            }
             
             // Log periodic statistics
             if (trade_logger_) {
@@ -867,6 +919,138 @@ void TradingEngineService::update_statistics() {
         statistics_.success_rate = static_cast<double>(successful) / static_cast<double>(total_executed);
         statistics_.average_profit_per_trade = statistics_.total_profit_loss.load() / static_cast<double>(total_executed);
     }
+}
+
+void TradingEngineService::collect_system_metrics() {
+    if (!prometheus_exporter_) return;
+    
+    // Collect CPU usage
+    double cpu_usage = get_cpu_usage();
+    prometheus_exporter_->set_cpu_usage(cpu_usage);
+    
+    // Collect memory usage
+    double memory_mb = get_memory_usage();
+    prometheus_exporter_->set_memory_usage(memory_mb);
+    
+    // Update service uptime
+    auto uptime = std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::steady_clock::now() - statistics_.session_start_time.load()
+    ).count();
+    prometheus_exporter_->set_service_uptime(static_cast<double>(uptime));
+}
+
+double TradingEngineService::get_cpu_usage() {
+#ifdef _WIN32
+    static ULARGE_INTEGER lastCPU, lastSysCPU, lastUserCPU;
+    static int numProcessors;
+    static bool initialized = false;
+    
+    if (!initialized) {
+        SYSTEM_INFO sysInfo;
+        FILETIME ftime, fsys, fuser;
+        
+        GetSystemInfo(&sysInfo);
+        numProcessors = sysInfo.dwNumberOfProcessors;
+        
+        GetSystemTimeAsFileTime(&ftime);
+        memcpy(&lastCPU, &ftime, sizeof(FILETIME));
+        
+        GetProcessTimes(GetCurrentProcess(), &ftime, &ftime, &fsys, &fuser);
+        memcpy(&lastSysCPU, &fsys, sizeof(FILETIME));
+        memcpy(&lastUserCPU, &fuser, sizeof(FILETIME));
+        
+        initialized = true;
+        return 0.0; // First call returns 0
+    }
+    
+    FILETIME ftime, fsys, fuser;
+    ULARGE_INTEGER now, sys, user;
+    double percent = 0.0;
+    
+    GetSystemTimeAsFileTime(&ftime);
+    memcpy(&now, &ftime, sizeof(FILETIME));
+    
+    GetProcessTimes(GetCurrentProcess(), &ftime, &ftime, &fsys, &fuser);
+    memcpy(&sys, &fsys, sizeof(FILETIME));
+    memcpy(&user, &fuser, sizeof(FILETIME));
+    
+    if (now.QuadPart > lastCPU.QuadPart) {
+        percent = (sys.QuadPart - lastSysCPU.QuadPart) + (user.QuadPart - lastUserCPU.QuadPart);
+        percent /= (now.QuadPart - lastCPU.QuadPart);
+        percent /= numProcessors;
+        percent *= 100;
+    }
+    
+    lastCPU = now;
+    lastUserCPU = user;
+    lastSysCPU = sys;
+    
+    return percent;
+#elif defined(__linux__)
+    static unsigned long long lastTotalUser, lastTotalUserLow, lastTotalSys, lastTotalIdle;
+    static bool initialized = false;
+    
+    std::ifstream file("/proc/stat");
+    if (!file.is_open()) return 0.0;
+    
+    std::string line;
+    std::getline(file, line);
+    
+    unsigned long long totalUser, totalUserLow, totalSys, totalIdle, total;
+    
+    std::sscanf(line.c_str(), "cpu %llu %llu %llu %llu",
+                &totalUser, &totalUserLow, &totalSys, &totalIdle);
+    
+    if (!initialized) {
+        lastTotalUser = totalUser;
+        lastTotalUserLow = totalUserLow;
+        lastTotalSys = totalSys;
+        lastTotalIdle = totalIdle;
+        initialized = true;
+        return 0.0;
+    }
+    
+    total = (totalUser - lastTotalUser) + (totalUserLow - lastTotalUserLow) + 
+            (totalSys - lastTotalSys);
+    
+    double percent = total;
+    total += (totalIdle - lastTotalIdle);
+    percent /= total;
+    percent *= 100;
+    
+    lastTotalUser = totalUser;
+    lastTotalUserLow = totalUserLow;
+    lastTotalSys = totalSys;
+    lastTotalIdle = totalIdle;
+    
+    return percent;
+#else
+    return 0.0; // Unsupported platform
+#endif
+}
+
+double TradingEngineService::get_memory_usage() {
+#ifdef _WIN32
+    PROCESS_MEMORY_COUNTERS memCounter;
+    if (GetProcessMemoryInfo(GetCurrentProcess(), &memCounter, sizeof(memCounter))) {
+        return static_cast<double>(memCounter.WorkingSetSize) / (1024.0 * 1024.0); // MB
+    }
+    return 0.0;
+#elif defined(__linux__)
+    std::ifstream file("/proc/self/status");
+    std::string line;
+    while (std::getline(file, line)) {
+        if (line.substr(0, 6) == "VmRSS:") {
+            std::istringstream iss(line);
+            std::string key, value, unit;
+            iss >> key >> value >> unit;
+            return std::stod(value) / 1024.0; // Convert from KB to MB
+        }
+    }
+    return 0.0;
+#else
+    return 0.0; // Unsupported platform
+#endif
 }
 
 std::string TradingEngineService::generate_trade_id() const {

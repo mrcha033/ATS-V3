@@ -10,6 +10,9 @@
 namespace ats {
 namespace backtest {
 
+// Import Logger from utils namespace
+using ats::utils::Logger;
+
 // InfluxDataPoint Implementation
 void InfluxDataPoint::add_tag(const std::string& key, const std::string& value) {
     tags[key] = value;
@@ -127,7 +130,7 @@ bool InfluxDBStorage::initialize(const InfluxDBConfig& config) {
         return false;
     }
     
-    LOG_INFO("InfluxDB storage initialized with URL: {}", config_.url);
+    Logger::info("InfluxDB storage initialized with URL: {}", config_.url);
     return true;
 }
 
@@ -150,19 +153,19 @@ bool InfluxDBStorage::connect() {
         }
         
         is_connected_ = true;
-        LOG_INFO("Connected to InfluxDB at {}", config_.url);
+        Logger::info("Connected to InfluxDB at {}", config_.url);
         return true;
         
     } catch (const std::exception& e) {
         set_last_error("Connection failed: " + std::string(e.what()));
-        LOG_ERROR("InfluxDB connection failed: {}", e.what());
+        Logger::error("InfluxDB connection failed: {}", e.what());
         return false;
     }
 }
 
 void InfluxDBStorage::disconnect() {
     is_connected_ = false;
-    LOG_INFO("Disconnected from InfluxDB");
+    Logger::info("Disconnected from InfluxDB");
 }
 
 bool InfluxDBStorage::is_connected() const {
@@ -173,7 +176,7 @@ bool InfluxDBStorage::write_backtest_result(const BacktestResult& result,
                                            const std::string& strategy_name,
                                            const std::unordered_map<std::string, std::string>& additional_tags) {
     if (!is_connected_) {
-        LOG_ERROR("Not connected to InfluxDB");
+        Logger::error("Not connected to InfluxDB");
         return false;
     }
     
@@ -218,7 +221,7 @@ bool InfluxDBStorage::write_backtest_result(const BacktestResult& result,
         return write_data_points(points);
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to write backtest result: {}", e.what());
+        Logger::error("Failed to write backtest result: {}", e.what());
         return false;
     }
 }
@@ -248,14 +251,14 @@ bool InfluxDBStorage::write_data_points(const std::vector<InfluxDataPoint>& poin
         std::string response = make_http_request("POST", build_write_url(), data.str());
         
         if (handle_response_error(response)) {
-            LOG_DEBUG("Successfully wrote {} data points to InfluxDB", points.size());
+            Logger::debug("Successfully wrote {} data points to InfluxDB", points.size());
             return true;
         }
         
         return false;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to write data points: {}", e.what());
+        Logger::error("Failed to write data points: {}", e.what());
         return false;
     }
 }
@@ -304,7 +307,7 @@ InfluxQueryResult InfluxDBStorage::query(const std::string& query) {
         
     } catch (const std::exception& e) {
         result.error = "Query failed: " + std::string(e.what());
-        LOG_ERROR("InfluxDB query failed: {}", e.what());
+        Logger::error("InfluxDB query failed: {}", e.what());
         return result;
     }
 }
@@ -315,7 +318,7 @@ bool InfluxDBStorage::ping() {
         return !response.empty();
         
     } catch (const std::exception& e) {
-        LOG_ERROR("InfluxDB ping failed: {}", e.what());
+        Logger::error("InfluxDB ping failed: {}", e.what());
         return false;
     }
 }
@@ -327,10 +330,10 @@ bool InfluxDBStorage::create_database(const std::string& database_name) {
     auto result = this->query(query);
     
     if (result.success) {
-        LOG_INFO("Created InfluxDB database: {}", db_name);
+        Logger::info("Created InfluxDB database: {}", db_name);
         return true;
     } else {
-        LOG_ERROR("Failed to create database {}: {}", db_name, result.error);
+        Logger::error("Failed to create database {}: {}", db_name, result.error);
         return false;
     }
 }
@@ -347,7 +350,7 @@ std::string InfluxDBStorage::make_http_request(const std::string& method,
     // Simplified HTTP client implementation
     // In production, would use proper HTTP client library like cpprestsdk or curl
     
-    LOG_DEBUG("Making {} request to: {}", method, endpoint);
+    Logger::debug("Making {} request to: {}", method, endpoint);
     
     // Simulate successful response for demonstration
     if (method == "POST" && endpoint.find("/write") != std::string::npos) {
@@ -457,7 +460,7 @@ InfluxDataPoint InfluxDBStorage::convert_trade_result_to_point(
     point.add_field("pnl_percentage", trade.pnl_percentage);
     point.add_field("fees", trade.fees);
     point.add_field("net_pnl", trade.net_pnl);
-    point.add_field("is_profitable", trade.is_profitable ? 1 : 0);
+    point.add_field("is_profitable", static_cast<int64_t>(trade.is_profitable ? 1 : 0));
     
     // Calculate duration
     auto duration = std::chrono::duration_cast<std::chrono::minutes>(
@@ -497,12 +500,12 @@ InfluxDataPoint InfluxDBStorage::convert_portfolio_snapshot_to_point(
 
 bool InfluxDBStorage::validate_config() const {
     if (config_.url.empty()) {
-        LOG_ERROR("InfluxDB URL is empty");
+        Logger::error("InfluxDB URL is empty");
         return false;
     }
     
     if (config_.database.empty()) {
-        LOG_ERROR("InfluxDB database name is empty");
+        Logger::error("InfluxDB database name is empty");
         return false;
     }
     
@@ -511,7 +514,7 @@ bool InfluxDBStorage::validate_config() const {
 
 void InfluxDBStorage::set_last_error(const std::string& error) {
     last_error_ = error;
-    LOG_ERROR("InfluxDB error: {}", error);
+    Logger::error("InfluxDB error: {}", error);
 }
 
 bool InfluxDBStorage::handle_response_error(const std::string& response) {
@@ -573,10 +576,10 @@ bool InfluxBatchWriter::flush() {
     
     if (success) {
         total_written_ += batch_.size();
-        LOG_DEBUG("Flushed {} points to InfluxDB", batch_.size());
+        Logger::debug("Flushed {} points to InfluxDB", batch_.size());
     } else {
         total_failed_ += batch_.size();
-        LOG_ERROR("Failed to flush {} points to InfluxDB", batch_.size());
+        Logger::error("Failed to flush {} points to InfluxDB", batch_.size());
     }
     
     reset_batch();
@@ -629,7 +632,7 @@ bool BacktestResultManager::store_backtest_result(const BacktestResult& result,
         return storage_->write_backtest_result(result, strategy_name, metadata);
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to store backtest result: {}", e.what());
+        Logger::error("Failed to store backtest result: {}", e.what());
         return false;
     }
 }

@@ -1,5 +1,6 @@
 #include "../include/data_loader.hpp"
-#include "../../utils/logger.hpp"
+#include "utils/logger.hpp"
+#include <set>
 #include <sstream>
 #include <fstream>
 #include <algorithm>
@@ -27,13 +28,13 @@ bool CsvDataLoader::load_market_data(const std::string& file_path,
                                     const std::string& format) {
     try {
         if (!std::filesystem::exists(file_path)) {
-            LOG_ERROR("CSV file does not exist: {}", file_path);
+            ATS_LOG_ERROR("CSV file does not exist: {}", file_path);
             return false;
         }
         
         std::ifstream file(file_path);
         if (!file.is_open()) {
-            LOG_ERROR("Failed to open CSV file: {}", file_path);
+            ATS_LOG_ERROR("Failed to open CSV file: {}", file_path);
             return false;
         }
         
@@ -64,7 +65,7 @@ bool CsvDataLoader::load_market_data(const std::string& file_path,
                 if (format == "ohlcv") {
                     // Expected columns: timestamp, symbol, exchange, open, high, low, close, volume
                     if (columns.size() < 7) {
-                        LOG_WARNING("Insufficient columns in line {}: {}", line_number, line);
+                        ATS_LOG_WARNING("Insufficient columns in line {}: {}", line_number, line);
                         continue;
                     }
                     
@@ -82,7 +83,7 @@ bool CsvDataLoader::load_market_data(const std::string& file_path,
                 } else if (format == "tick") {
                     // Expected columns: timestamp, symbol, exchange, price, volume, bid, ask
                     if (columns.size() < 5) {
-                        LOG_WARNING("Insufficient columns in line {}: {}", line_number, line);
+                        ATS_LOG_WARNING("Insufficient columns in line {}: {}", line_number, line);
                         continue;
                     }
                     
@@ -100,23 +101,23 @@ bool CsvDataLoader::load_market_data(const std::string& file_path,
                     }
                     
                 } else {
-                    LOG_ERROR("Unsupported CSV format: {}", format);
+                    ATS_LOG_ERROR("Unsupported CSV format: {}", format);
                     return false;
                 }
                 
                 data.push_back(point);
                 
             } catch (const std::exception& e) {
-                LOG_WARNING("Error parsing line {}: {} ({})", line_number, line, e.what());
+                ATS_LOG_WARNING("Error parsing line {}: {} ({})", line_number, line, e.what());
                 continue;
             }
         }
         
-        LOG_INFO("Loaded {} market data points from {}", data.size(), file_path);
+        ATS_LOG_INFO("Loaded {} market data points from {}", data.size(), file_path);
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to load CSV data from {}: {}", file_path, e.what());
+        ATS_LOG_ERROR("Failed to load CSV data from {}: {}", file_path, e.what());
         return false;
     }
 }
@@ -126,7 +127,7 @@ bool CsvDataLoader::load_trade_data(const std::string& file_path,
     try {
         std::ifstream file(file_path);
         if (!file.is_open()) {
-            LOG_ERROR("Failed to open trade CSV file: {}", file_path);
+            ATS_LOG_ERROR("Failed to open trade CSV file: {}", file_path);
             return false;
         }
         
@@ -151,7 +152,7 @@ bool CsvDataLoader::load_trade_data(const std::string& file_path,
             
             // Expected columns: timestamp, symbol, exchange, side, price, quantity, fee
             if (columns.size() < 6) {
-                LOG_WARNING("Insufficient columns in trade line {}: {}", line_number, line);
+                ATS_LOG_WARNING("Insufficient columns in trade line {}: {}", line_number, line);
                 continue;
             }
             
@@ -174,16 +175,16 @@ bool CsvDataLoader::load_trade_data(const std::string& file_path,
                 data.push_back(trade);
                 
             } catch (const std::exception& e) {
-                LOG_WARNING("Error parsing trade line {}: {} ({})", line_number, line, e.what());
+                ATS_LOG_WARNING("Error parsing trade line {}: {} ({})", line_number, line, e.what());
                 continue;
             }
         }
         
-        LOG_INFO("Loaded {} trade data points from {}", data.size(), file_path);
+        ATS_LOG_INFO("Loaded {} trade data points from {}", data.size(), file_path);
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to load trade CSV data from {}: {}", file_path, e.what());
+        ATS_LOG_ERROR("Failed to load trade CSV data from {}: {}", file_path, e.what());
         return false;
     }
 }
@@ -277,7 +278,7 @@ bool CsvDataLoader::validate_csv_file(const std::string& file_path) {
         return !columns.empty();
         
     } catch (const std::exception& e) {
-        LOG_ERROR("CSV validation failed for {}: {}", file_path, e.what());
+        ATS_LOG_ERROR("CSV validation failed for {}: {}", file_path, e.what());
         return false;
     }
 }
@@ -289,7 +290,7 @@ ApiDataLoader::~ApiDataLoader() = default;
 bool ApiDataLoader::initialize(const std::unordered_map<std::string, std::string>& api_configs) {
     api_configs_ = api_configs;
     
-    LOG_INFO("ApiDataLoader initialized with {} exchange configurations", api_configs_.size());
+    ATS_LOG_INFO("ApiDataLoader initialized with {} exchange configurations", api_configs_.size());
     return true;
 }
 
@@ -309,12 +310,12 @@ bool ApiDataLoader::load_historical_data(const std::string& exchange,
         } else if (exchange_lower == "upbit") {
             return load_upbit_data(symbol, interval, start_time, end_time, data);
         } else {
-            LOG_ERROR("Unsupported exchange: {}", exchange);
+            ATS_LOG_ERROR("Unsupported exchange: {}", exchange);
             return false;
         }
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to load historical data from {}: {}", exchange, e.what());
+        ATS_LOG_ERROR("Failed to load historical data from {}: {}", exchange, e.what());
         return false;
     }
 }
@@ -328,17 +329,17 @@ bool ApiDataLoader::load_binance_data(const std::string& symbol, const std::stri
         std::string response = make_http_request(url);
         
         if (response.empty()) {
-            LOG_ERROR("Empty response from Binance API");
+            ATS_LOG_ERROR("Empty response from Binance API");
             return false;
         }
         
         data = parse_binance_response(response, symbol);
         
-        LOG_INFO("Loaded {} data points from Binance for {}", data.size(), symbol);
+        ATS_LOG_INFO("Loaded {} data points from Binance for {}", data.size(), symbol);
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to load Binance data for {}: {}", symbol, e.what());
+        ATS_LOG_ERROR("Failed to load Binance data for {}: {}", symbol, e.what());
         return false;
     }
 }
@@ -369,7 +370,7 @@ std::string ApiDataLoader::make_http_request(const std::string& url,
     // In production, would use proper HTTP client library like cpprestsdk or curl
     
     // For now, return empty string - this would be implemented with actual HTTP client
-    LOG_INFO("Making HTTP request to: {}", url);
+    ATS_LOG_INFO("Making HTTP request to: {}", url);
     
     // TODO: Implement actual HTTP request using curl or similar library
     return ""; // Placeholder
@@ -397,7 +398,7 @@ DataLoader::~DataLoader() = default;
 bool DataLoader::initialize(const DataLoaderConfig& config) {
     config_ = config;
     
-    LOG_INFO("DataLoader initialized with source: {}", config_.data_source);
+    ATS_LOG_INFO("DataLoader initialized with source: {}", config_.data_source);
     
     if (config_.data_source == "api") {
         // Initialize API loader with credentials if available
@@ -426,7 +427,7 @@ bool DataLoader::load_data(std::vector<MarketDataPoint>& market_data,
         } else if (config_.data_source == "database") {
             success = load_from_database(market_data);
         } else {
-            LOG_ERROR("Unsupported data source: {}", config_.data_source);
+            ATS_LOG_ERROR("Unsupported data source: {}", config_.data_source);
             return false;
         }
         
@@ -444,20 +445,20 @@ bool DataLoader::load_data(std::vector<MarketDataPoint>& market_data,
                 market_data = filter_by_symbols(market_data, config_.symbols);
             }
             
-            LOG_INFO("Loaded and processed {} market data points", market_data.size());
+            ATS_LOG_INFO("Loaded and processed {} market data points", market_data.size());
         }
         
         return success;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to load data: {}", e.what());
+        ATS_LOG_ERROR("Failed to load data: {}", e.what());
         return false;
     }
 }
 
 bool DataLoader::load_from_csv(std::vector<MarketDataPoint>& data) {
     if (config_.file_path.empty()) {
-        LOG_ERROR("CSV file path not specified");
+        ATS_LOG_ERROR("CSV file path not specified");
         return false;
     }
     
@@ -466,7 +467,7 @@ bool DataLoader::load_from_csv(std::vector<MarketDataPoint>& data) {
 
 bool DataLoader::load_from_api(std::vector<MarketDataPoint>& data) {
     if (config_.symbols.empty() || config_.exchanges.empty()) {
-        LOG_ERROR("Symbols or exchanges not specified for API loading");
+        ATS_LOG_ERROR("Symbols or exchanges not specified for API loading");
         return false;
     }
     
@@ -482,7 +483,7 @@ bool DataLoader::load_from_api(std::vector<MarketDataPoint>& data) {
             if (success) {
                 data.insert(data.end(), symbol_data.begin(), symbol_data.end());
             } else {
-                LOG_WARNING("Failed to load data for {}/{}", exchange, symbol);
+                ATS_LOG_WARNING("Failed to load data for {}/{}", exchange, symbol);
             }
         }
     }
@@ -492,7 +493,7 @@ bool DataLoader::load_from_api(std::vector<MarketDataPoint>& data) {
 
 bool DataLoader::load_from_database(std::vector<MarketDataPoint>& data) {
     // TODO: Implement database loading
-    LOG_INFO("Database loading not yet implemented");
+    ATS_LOG_INFO("Database loading not yet implemented");
     return false;
 }
 
@@ -641,13 +642,13 @@ DatabaseDataLoader::~DatabaseDataLoader() = default;
 bool DatabaseDataLoader::connect(const std::string& connection_string) {
     connection_string_ = connection_string;
     is_connected_ = true;
-    LOG_INFO("Database connection established (stub implementation)");
+    ATS_LOG_INFO("Database connection established (stub implementation)");
     return true;
 }
 
 void DatabaseDataLoader::disconnect() {
     is_connected_ = false;
-    LOG_INFO("Database disconnected");
+    ATS_LOG_INFO("Database disconnected");
 }
 
 } // namespace backtest

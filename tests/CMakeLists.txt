@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 
 # Find required packages
 find_package(GTest REQUIRED)
-find_package(GMock REQUIRED)
+# find_package(GMock REQUIRED)
 
 # Include directories
 include_directories(
@@ -79,6 +79,35 @@ set_tests_properties(SecurityTest PROPERTIES
 if(ENABLE_COVERAGE)
     target_compile_options(test_security PRIVATE --coverage)
     target_link_libraries(test_security PRIVATE --coverage)
+endif()
+
+# Exchange plugin system tests
+add_executable(test_exchange_plugin_system
+    test_exchange_plugin_system.cpp
+)
+
+target_link_libraries(test_exchange_plugin_system
+    PRIVATE
+        shared
+        GTest::gtest
+        GTest::gtest_main
+        GTest::gmock
+        GTest::gmock_main
+        ${CONAN_LIBS}
+)
+
+# Add test to CTest
+add_test(NAME ExchangePluginSystemTest COMMAND test_exchange_plugin_system)
+
+# Set working directory for tests
+set_tests_properties(ExchangePluginSystemTest PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+# Coverage support for plugin tests
+if(ENABLE_COVERAGE)
+    target_compile_options(test_exchange_plugin_system PRIVATE --coverage)
+    target_link_libraries(test_exchange_plugin_system PRIVATE --coverage)
 endif()
 
 # Additional test targets will be added here for other modules

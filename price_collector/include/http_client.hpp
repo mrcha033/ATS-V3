@@ -8,6 +8,8 @@
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/stream.hpp>
+#include <set>
+#include <queue>
 #include <memory>
 #include <string>
 #include <functional>

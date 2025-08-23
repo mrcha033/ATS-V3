@@ -1,5 +1,5 @@
-#include "../include/totp_manager.hpp"
-#include "../../utils/logger.hpp"
+#include "totp_manager.hpp"
+#include "utils/logger.hpp"
 #include <openssl/hmac.h>
 #include <openssl/sha.h>
 #include <fstream>
@@ -28,7 +28,7 @@ TotpManager::~TotpManager() = default;
 
 bool TotpManager::initialize(std::shared_ptr<CryptoManager> crypto_manager) {
     if (!crypto_manager) {
-        LOG_ERROR("CryptoManager is null");
+        utils::Logger::error("CryptoManager is null");
         return false;
     }
     
@@ -37,10 +37,10 @@ bool TotpManager::initialize(std::shared_ptr<CryptoManager> crypto_manager) {
     // Create storage directory if it doesn't exist
     try {
         std::filesystem::create_directories(storage_path_);
-        LOG_INFO("TotpManager initialized successfully");
+        utils::Logger::info("TotpManager initialized successfully");
         return true;
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to create TOTP storage directory: {}", e.what());
+        utils::Logger::error("Failed to create TOTP storage directory: {}", e.what());
         return false;
     }
 }
@@ -67,11 +67,11 @@ TotpManager::TotpSecret TotpManager::generate_totp_secret(const std::string& use
         
         secret.is_active = false;
         
-        LOG_INFO("Generated TOTP secret for user: {}", user_id);
+        utils::Logger::info("Generated TOTP secret for user: {}", user_id);
         return secret;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to generate TOTP secret for user {}: {}", user_id, e.what());
+        utils::Logger::error("Failed to generate TOTP secret for user {}: {}", user_id, e.what());
         return secret;
     }
 }
@@ -89,7 +89,7 @@ bool TotpManager::store_totp_secret(const std::string& user_id, const TotpSecret
         return save_user_totp_data(user_id, status, secret);
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to store TOTP secret for user {}: {}", user_id, e.what());
+        utils::Logger::error("Failed to store TOTP secret for user {}: {}", user_id, e.what());
         return false;
     }
 }
@@ -121,7 +121,7 @@ std::string TotpManager::generate_totp_code(const std::string& secret_key,
         return oss.str();
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to generate TOTP code: {}", e.what());
+        utils::Logger::error("Failed to generate TOTP code: {}", e.what());
         return "";
     }
 }
@@ -133,14 +133,14 @@ bool TotpManager::verify_totp_code(const std::string& user_id,
     try {
         // Check if user is locked
         if (is_user_2fa_locked(user_id)) {
-            LOG_WARNING("2FA verification attempted for locked user: {}", user_id);
+            utils::Logger::warn("2FA verification attempted for locked user: {}", user_id);
             return false;
         }
         
         // Get user's secret
         auto secret = get_totp_secret(user_id);
         if (secret.secret_key.empty()) {
-            LOG_ERROR("No TOTP secret found for user: {}", user_id);
+            utils::Logger::error("No TOTP secret found for user: {}", user_id);
             record_failed_attempt(user_id);
             return false;
         }
@@ -167,17 +167,17 @@ bool TotpManager::verify_totp_code(const std::string& user_id,
                     save_user_totp_data(user_id, status, temp_secret);
                 }
                 
-                LOG_INFO("TOTP verification successful for user: {}", user_id);
+                utils::Logger::info("TOTP verification successful for user: {}", user_id);
                 return true;
             }
         }
         
         record_failed_attempt(user_id);
-        LOG_WARNING("TOTP verification failed for user: {}", user_id);
+        utils::Logger::warn("TOTP verification failed for user: {}", user_id);
         return false;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error during TOTP verification for user {}: {}", user_id, e.what());
+        utils::Logger::error("Error during TOTP verification for user {}: {}", user_id, e.what());
         record_failed_attempt(user_id);
         return false;
     }
@@ -215,13 +215,13 @@ bool TotpManager::enable_2fa_for_user(const std::string& user_id) {
     TotpSecret secret;
     
     if (!load_user_totp_data(user_id, status, secret)) {
-        LOG_ERROR("Cannot enable 2FA for user {} - no TOTP data found", user_id);
+        utils::Logger::error("Cannot enable 2FA for user {} - no TOTP data found", user_id);
         return false;
     }
     
     status.is_enabled = true;
     if (save_user_totp_data(user_id, status, secret)) {
-        LOG_INFO("2FA enabled for user: {}", user_id);
+        utils::Logger::info("2FA enabled for user: {}", user_id);
         return true;
     }
     
@@ -263,7 +263,7 @@ void TotpManager::record_failed_attempt(const std::string& user_id) {
         if (status.failed_attempts >= 5) {
             status.is_locked = true;
             status.locked_until = std::chrono::system_clock::now() + std::chrono::minutes(15);
-            LOG_WARNING("User {} locked due to too many failed 2FA attempts", user_id);
+            utils::Logger::warn("User {} locked due to too many failed 2FA attempts", user_id);
         }
         
         save_user_totp_data(user_id, status, secret);
@@ -349,7 +349,7 @@ std::vector<uint8_t> TotpManager::base32_decode(const std::string& encoded) {
         }
         
         if (value == -1) {
-            LOG_ERROR("Invalid Base32 character: {}", c);
+            utils::Logger::error("Invalid Base32 character: {}", c);
             return {};
         }
         
@@ -435,14 +435,14 @@ bool TotpManager::save_user_totp_data(const std::string& user_id, const UserTotp
         
         auto encrypted = crypto_manager_->encrypt_aes256_gcm(data_stream.str(), "totp_" + user_id);
         if (!encrypted.success) {
-            LOG_ERROR("Failed to encrypt TOTP data for user: {}", user_id);
+            utils::Logger::error("Failed to encrypt TOTP data for user: {}", user_id);
             return false;
         }
         
         // Save encrypted data to file
         std::ofstream file(file_path, std::ios::binary);
         if (!file) {
-            LOG_ERROR("Failed to open TOTP file for writing: {}", file_path);
+            utils::Logger::error("Failed to open TOTP file for writing: {}", file_path);
             return false;
         }
         
@@ -454,7 +454,7 @@ bool TotpManager::save_user_totp_data(const std::string& user_id, const UserTotp
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to save TOTP data for user {}: {}", user_id, e.what());
+        utils::Logger::error("Failed to save TOTP data for user {}: {}", user_id, e.what());
         return false;
     }
 }
@@ -469,7 +469,7 @@ bool TotpManager::load_user_totp_data(const std::string& user_id, UserTotpStatus
         
         std::ifstream file(file_path, std::ios::binary);
         if (!file) {
-            LOG_ERROR("Failed to open TOTP file for reading: {}", file_path);
+            utils::Logger::error("Failed to open TOTP file for reading: {}", file_path);
             return false;
         }
         
@@ -491,7 +491,7 @@ bool TotpManager::load_user_totp_data(const std::string& user_id, UserTotpStatus
         // Decrypt data
         std::string decrypted = crypto_manager_->decrypt_aes256_gcm(encrypted_data, iv, tag, "totp_" + user_id);
         if (decrypted.empty()) {
-            LOG_ERROR("Failed to decrypt TOTP data for user: {}", user_id);
+            utils::Logger::error("Failed to decrypt TOTP data for user: {}", user_id);
             return false;
         }
         
@@ -537,7 +537,7 @@ bool TotpManager::load_user_totp_data(const std::string& user_id, UserTotpStatus
         return true;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to load TOTP data for user {}: {}", user_id, e.what());
+        utils::Logger::error("Failed to load TOTP data for user {}: {}", user_id, e.what());
         return false;
     }
 }
@@ -550,7 +550,7 @@ void TotpManager::unlock_user_2fa(const std::string& user_id) {
         status.is_locked = false;
         status.locked_until = std::chrono::system_clock::time_point{};
         save_user_totp_data(user_id, status, secret);
-        LOG_INFO("2FA unlocked for user: {}", user_id);
+        utils::Logger::info("2FA unlocked for user: {}", user_id);
     }
 }
 
@@ -600,7 +600,7 @@ TwoFactorAuth::AuthResult TwoFactorAuth::authenticate_user(const std::string& us
         }
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Error during 2FA authentication for user {}: {}", user_id, e.what());
+        utils::Logger::error("Error during 2FA authentication for user {}: {}", user_id, e.what());
         return AuthResult::ERROR;
     }
 }
@@ -616,11 +616,11 @@ std::string TwoFactorAuth::start_2fa_setup(const std::string& user_id) {
         
         setup_sessions_[session.session_id] = session;
         
-        LOG_INFO("Started 2FA setup for user: {}", user_id);
+        utils::Logger::info("Started 2FA setup for user: {}", user_id);
         return session.session_id;
         
     } catch (const std::exception& e) {
-        LOG_ERROR("Failed to start 2FA setup for user {}: {}", user_id, e.what());
+        utils::Logger::error("Failed to start 2FA setup for user {}: {}", user_id, e.what());
         return "";
     }
 }
@@ -667,7 +667,7 @@ bool TwoFactorAuth::complete_2fa_setup(const std::string& session_id) {
     setup_sessions_.erase(it);
     
     if (success) {
-        LOG_INFO("Completed 2FA setup for user: {}", session.user_id);
+        utils::Logger::info("Completed 2FA setup for user: {}", session.user_id);
     }
     
     return success;
