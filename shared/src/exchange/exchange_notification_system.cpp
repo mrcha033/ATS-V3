@@ -10,6 +10,7 @@
 #include <random>
 #include <sstream>
 #include <iomanip>
+#include <iostream>
 
 namespace ats {
 namespace exchange {

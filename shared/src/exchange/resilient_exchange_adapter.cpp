@@ -19,7 +19,7 @@ ResilientExchangeAdapter<ExchangeInterface>::ResilientExchangeAdapter(
     
     // Set up failover manager callbacks
     failover_manager_->set_failover_callback([this](const std::string& from, const std::string& to, FailoverReason reason) {
-        Logger::warn("Exchange failover: {} -> {} (reason: {})", from, to, static_cast<int>(reason));
+        utils::Logger::warn("Exchange failover: {} -> {} (reason: {})", from, to, static_cast<int>(reason));
         
         if (failover_callback_) {
             std::runtime_error error("Failover triggered: " + std::to_string(static_cast<int>(reason)));
@@ -27,7 +27,7 @@ ResilientExchangeAdapter<ExchangeInterface>::ResilientExchangeAdapter(
         }
     });
     
-    Logger::info("ResilientExchangeAdapter created with circuit breaker config: "
+    utils::Logger::info("ResilientExchangeAdapter created with circuit breaker config: "
                  "failure_threshold={}, timeout={}s", 
                  circuit_config_.failure_threshold, 
                  circuit_config_.timeout.count());
@@ -45,19 +45,19 @@ void ResilientExchangeAdapter<ExchangeInterface>::register_exchange(
     int priority) {
     
     failover_manager_->register_exchange(exchange_id, exchange, priority);
-    Logger::info("Exchange {} registered in resilient adapter", exchange_id);
+    utils::Logger::info("Exchange {} registered in resilient adapter", exchange_id);
 }
 
 template<typename ExchangeInterface>
 void ResilientExchangeAdapter<ExchangeInterface>::start() {
     failover_manager_->start_health_monitoring();
-    Logger::info("ResilientExchangeAdapter started");
+    utils::Logger::info("ResilientExchangeAdapter started");
 }
 
 template<typename ExchangeInterface>
 void ResilientExchangeAdapter<ExchangeInterface>::stop() {
     failover_manager_->stop_health_monitoring();
-    Logger::info("ResilientExchangeAdapter stopped");
+    utils::Logger::info("ResilientExchangeAdapter stopped");
 }
 
 template<typename ExchangeInterface>
@@ -77,7 +77,7 @@ ReturnType ResilientExchangeAdapter<ExchangeInterface>::execute_with_failover(
     
     auto available_exchanges = failover_manager_->get_available_exchanges();
     if (available_exchanges.empty()) {
-        Logger::error("No available exchanges for operation: {}", operation_name);
+        utils::Logger::error("No available exchanges for operation: {}", operation_name);
         record_failure();
         return default_return;
     }
@@ -86,7 +86,7 @@ ReturnType ResilientExchangeAdapter<ExchangeInterface>::execute_with_failover(
     
     for (auto exchange : available_exchanges) {
         try {
-            Logger::debug("Executing operation '{}' on exchange", operation_name);
+            utils::Logger::debug("Executing operation '{}' on exchange", operation_name);
             
             ReturnType result = operation(exchange);
             
@@ -100,13 +100,13 @@ ReturnType ResilientExchangeAdapter<ExchangeInterface>::execute_with_failover(
             
         } catch (const std::exception& e) {
             last_exception = e;
-            Logger::warn("Operation '{}' failed on exchange: {}", operation_name, e.what());
+            utils::Logger::warn("Operation '{}' failed on exchange: {}", operation_name, e.what());
             
             std::string exchange_id;
-            if constexpr (requires { exchange->get_exchange_id(); }) {
+            try {
                 exchange_id = exchange->get_exchange_id();
-            } else if constexpr (requires { exchange->get_name(); }) {
-                exchange_id = exchange->get_name();
+            } catch (...) {
+                exchange_id = "unknown";
             }
             
             if (!exchange_id.empty()) {
@@ -123,7 +123,7 @@ ReturnType ResilientExchangeAdapter<ExchangeInterface>::execute_with_failover(
     }
     
     // All exchanges failed
-    Logger::error("Operation '{}' failed on all available exchanges. Last error: {}", 
+    utils::Logger::error("Operation '{}' failed on all available exchanges. Last error: {}", 
                   operation_name, last_exception.what());
     
     record_failure();
@@ -144,12 +144,12 @@ ReturnType ResilientExchangeAdapter<ExchangeInterface>::execute_with_retry(
             return execute_with_failover(operation_name, operation, default_return);
         } catch (const std::exception& e) {
             if (attempt == max_retries) {
-                Logger::error("Operation '{}' failed after {} retries: {}", 
+                utils::Logger::error("Operation '{}' failed after {} retries: {}", 
                              operation_name, max_retries, e.what());
                 throw;
             }
             
-            Logger::warn("Operation '{}' failed on attempt {}/{}, retrying in {}ms: {}", 
+            utils::Logger::warn("Operation '{}' failed on attempt {}/{}, retrying in {}ms: {}", 
                            operation_name, attempt + 1, max_retries + 1, 
                            retry_delay.count(), e.what());
             
@@ -181,10 +181,10 @@ std::vector<std::string> ResilientExchangeAdapter<ExchangeInterface>::get_availa
     std::vector<std::string> exchange_ids;
     
     for (auto exchange : exchanges) {
-        if constexpr (requires { exchange->get_exchange_id(); }) {
+        try {
             exchange_ids.push_back(exchange->get_exchange_id());
-        } else if constexpr (requires { exchange->get_name(); }) {
-            exchange_ids.push_back(exchange->get_name());
+        } catch (...) {
+            exchange_ids.push_back("unknown");
         }
     }
     
@@ -216,7 +216,7 @@ void ResilientExchangeAdapter<ExchangeInterface>::reset_circuit_breaker() {
     half_open_successes_.store(0);
     half_open_requests_.store(0);
     
-    Logger::info("Circuit breaker manually reset");
+    utils::Logger::info("Circuit breaker manually reset");
     notify_circuit_state_change(old_state, CircuitState::CLOSED);
 }
 
@@ -226,7 +226,7 @@ void ResilientExchangeAdapter<ExchangeInterface>::manually_open_circuit() {
     circuit_state_.store(CircuitState::OPEN);
     circuit_opened_time_.store(std::chrono::system_clock::now());
     
-    Logger::warn("Circuit breaker manually opened");
+    utils::Logger::warn("Circuit breaker manually opened");
     notify_circuit_state_change(old_state, CircuitState::OPEN);
 }
 
@@ -244,7 +244,7 @@ void ResilientExchangeAdapter<ExchangeInterface>::reset_stats() {
     stats_.circuit_open_calls.store(0);
     stats_.total_latency.store(std::chrono::milliseconds(0));
     
-    Logger::info("Operation statistics reset");
+    utils::Logger::info("Operation statistics reset");
 }
 
 template<typename ExchangeInterface>
@@ -273,7 +273,7 @@ bool ResilientExchangeAdapter<ExchangeInterface>::can_execute() const {
                 circuit_state_.store(CircuitState::HALF_OPEN);
                 half_open_requests_.store(0);
                 half_open_successes_.store(0);
-                Logger::info("Circuit breaker transitioning from OPEN to HALF_OPEN");
+                utils::Logger::info("Circuit breaker transitioning from OPEN to HALF_OPEN");
                 notify_circuit_state_change(CircuitState::OPEN, CircuitState::HALF_OPEN);
                 return true;
             }
@@ -304,7 +304,7 @@ void ResilientExchangeAdapter<ExchangeInterface>::record_success() {
             if (success_rate >= circuit_config_.success_threshold) {
                 circuit_state_.store(CircuitState::CLOSED);
                 consecutive_failures_.store(0);
-                Logger::info("Circuit breaker closed after successful recovery");
+                utils::Logger::info("Circuit breaker closed after successful recovery");
                 notify_circuit_state_change(CircuitState::HALF_OPEN, CircuitState::CLOSED);
             }
         }
@@ -323,7 +323,7 @@ void ResilientExchangeAdapter<ExchangeInterface>::record_failure() {
     if (current_state == CircuitState::HALF_OPEN) {
         circuit_state_.store(CircuitState::OPEN);
         circuit_opened_time_.store(std::chrono::system_clock::now());
-        Logger::warn("Circuit breaker opened from HALF_OPEN due to failure");
+        utils::Logger::warn("Circuit breaker opened from HALF_OPEN due to failure");
         notify_circuit_state_change(CircuitState::HALF_OPEN, CircuitState::OPEN);
         
     } else if (current_state == CircuitState::CLOSED) {
@@ -332,7 +332,7 @@ void ResilientExchangeAdapter<ExchangeInterface>::record_failure() {
         if (failures >= circuit_config_.failure_threshold) {
             circuit_state_.store(CircuitState::OPEN);
             circuit_opened_time_.store(std::chrono::system_clock::now());
-            Logger::warn("Circuit breaker opened due to {} consecutive failures", failures);
+            utils::Logger::warn("Circuit breaker opened due to {} consecutive failures", failures);
             notify_circuit_state_change(CircuitState::CLOSED, CircuitState::OPEN);
         }
     }
@@ -352,7 +352,7 @@ ReturnType ResilientExchangeAdapter<ExchangeInterface>::handle_circuit_open(
     const std::string& operation_name,
     ReturnType default_return) {
     
-    Logger::debug("Operation '{}' blocked by open circuit breaker", operation_name);
+    utils::Logger::debug("Operation '{}' blocked by open circuit breaker", operation_name);
     return default_return;
 }
 
@@ -365,7 +365,7 @@ void ResilientExchangeAdapter<ExchangeInterface>::notify_circuit_state_change(
         try {
             circuit_callback_(old_state, new_state);
         } catch (const std::exception& e) {
-            Logger::error("Error in circuit breaker callback: {}", e.what());
+            utils::Logger::error("Error in circuit breaker callback: {}", e.what());
         }
     }
 }
@@ -381,7 +381,7 @@ void ResilientExchangeAdapter<ExchangeInterface>::notify_failover(
         try {
             failover_callback_(from_exchange, to_exchange, operation, error);
         } catch (const std::exception& e) {
-            Logger::error("Error in failover callback: {}", e.what());
+            utils::Logger::error("Error in failover callback: {}", e.what());
         }
     }
 }
