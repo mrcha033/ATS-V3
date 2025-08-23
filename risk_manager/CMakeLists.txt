@@ -17,6 +17,7 @@ target_include_directories(risk_manager PUBLIC
     ${CMAKE_SOURCE_DIR}/shared/include
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/trading_engine/include
+    ${CMAKE_SOURCE_DIR}/third_party
 )
 
 # Link libraries

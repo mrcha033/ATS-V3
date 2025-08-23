@@ -65,7 +65,7 @@ bool CsvDataLoader::load_market_data(const std::string& file_path,
                 if (format == "ohlcv") {
                     // Expected columns: timestamp, symbol, exchange, open, high, low, close, volume
                     if (columns.size() < 7) {
-                        ATS_LOG_WARNING("Insufficient columns in line {}: {}", line_number, line);
+                        ATS_LOG_WARN("Insufficient columns in line {}: {}", line_number, line);
                         continue;
                     }
                     
@@ -83,7 +83,7 @@ bool CsvDataLoader::load_market_data(const std::string& file_path,
                 } else if (format == "tick") {
                     // Expected columns: timestamp, symbol, exchange, price, volume, bid, ask
                     if (columns.size() < 5) {
-                        ATS_LOG_WARNING("Insufficient columns in line {}: {}", line_number, line);
+                        ATS_LOG_WARN("Insufficient columns in line {}: {}", line_number, line);
                         continue;
                     }
                     
@@ -108,7 +108,7 @@ bool CsvDataLoader::load_market_data(const std::string& file_path,
                 data.push_back(point);
                 
             } catch (const std::exception& e) {
-                ATS_LOG_WARNING("Error parsing line {}: {} ({})", line_number, line, e.what());
+                ATS_LOG_WARN("Error parsing line {}: {} ({})", line_number, line, e.what());
                 continue;
             }
         }
@@ -152,7 +152,7 @@ bool CsvDataLoader::load_trade_data(const std::string& file_path,
             
             // Expected columns: timestamp, symbol, exchange, side, price, quantity, fee
             if (columns.size() < 6) {
-                ATS_LOG_WARNING("Insufficient columns in trade line {}: {}", line_number, line);
+                ATS_LOG_WARN("Insufficient columns in trade line {}: {}", line_number, line);
                 continue;
             }
             
@@ -175,7 +175,7 @@ bool CsvDataLoader::load_trade_data(const std::string& file_path,
                 data.push_back(trade);
                 
             } catch (const std::exception& e) {
-                ATS_LOG_WARNING("Error parsing trade line {}: {} ({})", line_number, line, e.what());
+                ATS_LOG_WARN("Error parsing trade line {}: {} ({})", line_number, line, e.what());
                 continue;
             }
         }
@@ -483,7 +483,7 @@ bool DataLoader::load_from_api(std::vector<MarketDataPoint>& data) {
             if (success) {
                 data.insert(data.end(), symbol_data.begin(), symbol_data.end());
             } else {
-                ATS_LOG_WARNING("Failed to load data for {}/{}", exchange, symbol);
+                ATS_LOG_WARN("Failed to load data for {}/{}", exchange, symbol);
             }
         }
     }

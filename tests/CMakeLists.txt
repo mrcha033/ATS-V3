@@ -16,11 +16,11 @@ include_directories(
 )
 
 # Shared utilities tests
-add_executable(test_shared_utils
-    test_shared_utils.cpp
+add_executable(test_shared
+    test_shared.cpp
 )
 
-target_link_libraries(test_shared_utils
+target_link_libraries(test_shared
     PRIVATE
         shared
         GTest::gtest
@@ -31,7 +31,7 @@ target_link_libraries(test_shared_utils
 )
 
 # Add test to CTest
-add_test(NAME SharedUtilsTest COMMAND test_shared_utils)
+add_test(NAME SharedUtilsTest COMMAND test_shared)
 
 # Set working directory for tests
 set_tests_properties(SharedUtilsTest PROPERTIES
@@ -40,13 +40,13 @@ set_tests_properties(SharedUtilsTest PROPERTIES
 
 # Test configuration for different build types
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_compile_definitions(test_shared_utils PRIVATE DEBUG_BUILD)
+    target_compile_definitions(test_shared PRIVATE DEBUG_BUILD)
 endif()
 
 # Coverage support
 if(ENABLE_COVERAGE)
-    target_compile_options(test_shared_utils PRIVATE --coverage)
-    target_link_libraries(test_shared_utils PRIVATE --coverage)
+    target_compile_options(test_shared PRIVATE --coverage)
+    target_link_libraries(test_shared PRIVATE --coverage)
 endif()
 
 # Security tests

@@ -63,7 +63,7 @@ BaseExchangePlugin::BaseExchangePlugin()
     , initialized_(false)
     , started_(false)
     , message_count_(0)
-    , last_message_time_(std::chrono::steady_clock::now())
+    , last_message_time_ns_(std::chrono::steady_clock::now().time_since_epoch().count())
     , rate_limiter_(std::make_unique<RateLimiter>()) {
 }
 
@@ -399,11 +399,13 @@ size_t BaseExchangePlugin::get_messages_received() const {
 }
 
 size_t BaseExchangePlugin::get_messages_per_second() const {
-    auto now = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - last_message_time_);
+    auto now_ns = std::chrono::steady_clock::now().time_since_epoch().count();
+    auto last_ns = last_message_time_ns_.load();
+    auto elapsed_ns = now_ns - last_ns;
+    auto elapsed_seconds = elapsed_ns / 1000000000;  // Convert nanoseconds to seconds
     
-    if (elapsed.count() > 0) {
-        return message_count_ / elapsed.count();
+    if (elapsed_seconds > 0) {
+        return message_count_ / elapsed_seconds;
     }
     
     return 0;
@@ -527,7 +529,7 @@ void BaseExchangePlugin::log_info(const std::string& message) const {
 }
 
 void BaseExchangePlugin::log_warning(const std::string& message) const {
-    utils::Logger::warning("[" + get_plugin_name() + "] " + message);
+    utils::Logger::warn("[" + get_plugin_name() + "] " + message);
 }
 
 void BaseExchangePlugin::log_error(const std::string& message) const {
@@ -567,7 +569,8 @@ std::string BaseExchangePlugin::get_plugin_name() const {
 // Private helper methods
 
 void BaseExchangePlugin::update_message_statistics() {
-    last_message_time_ = std::chrono::steady_clock::now();
+    last_message_time_ns_ = std::chrono::steady_clock::now().time_since_epoch().count();
+    message_count_++;
 }
 
 std::chrono::milliseconds BaseExchangePlugin::calculate_average_latency() const {
@@ -578,9 +581,12 @@ std::chrono::milliseconds BaseExchangePlugin::calculate_average_latency() const 
     }
     
     auto total = std::accumulate(latency_samples_.begin(), latency_samples_.end(), 
-                                std::chrono::milliseconds(0));
+                                std::chrono::milliseconds(0),
+                                [](const std::chrono::milliseconds& a, const std::chrono::milliseconds& b) {
+                                    return a + b;
+                                });
     
-    return total / latency_samples_.size();
+    return std::chrono::milliseconds(total.count() / latency_samples_.size());
 }
 
 const ExchangePluginMetadata& BaseExchangePlugin::get_cached_metadata() const {

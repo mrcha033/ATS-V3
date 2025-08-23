@@ -31,7 +31,7 @@ add_library(${MODULE_NAME} STATIC ${SOURCES} ${HEADERS})
 
 # Link with shared utilities
 target_link_libraries(${MODULE_NAME} 
-    shared_utils
+    shared
     ${CMAKE_THREAD_LIBS_INIT}
 )
 
@@ -105,7 +105,7 @@ if(BUILD_BACKTEST_TESTS)
         
         target_link_libraries(${MODULE_NAME}_tests
             ${MODULE_NAME}
-            shared_utils
+            shared
             ${CMAKE_THREAD_LIBS_INIT}
         )
         
@@ -146,7 +146,7 @@ if(BUILD_BACKTEST_BENCHMARKS)
         
         target_link_libraries(${MODULE_NAME}_benchmarks
             ${MODULE_NAME}
-            shared_utils
+            shared
             ${CMAKE_THREAD_LIBS_INIT}
         )
         

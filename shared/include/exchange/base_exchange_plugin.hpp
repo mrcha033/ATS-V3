@@ -7,6 +7,7 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <deque>
 
 namespace ats {
 namespace exchange {
@@ -23,7 +24,7 @@ public:
     
 private:
     mutable std::mutex mutex_;
-    std::deque<std::chrono::steady_clock::time_point> request_times_;
+    mutable std::deque<std::chrono::steady_clock::time_point> request_times_;
     int max_requests_;
     std::chrono::minutes window_duration_;
 };
@@ -45,8 +46,19 @@ public:
     std::string get_version() const override;
     
     // IExchangePlugin implementation - connection
+    bool connect() override;
+    void disconnect() override;
     bool is_connected() const override;
     types::ConnectionStatus get_connection_status() const override;
+    
+    // IExchangePlugin implementation - subscriptions  
+    bool subscribe_ticker(const std::string& symbol) override;
+    bool subscribe_orderbook(const std::string& symbol, int depth = 20) override;
+    bool subscribe_trades(const std::string& symbol) override;
+    bool unsubscribe_ticker(const std::string& symbol) override;
+    bool unsubscribe_orderbook(const std::string& symbol) override;
+    bool unsubscribe_trades(const std::string& symbol) override;
+    bool unsubscribe_all() override;
     
     // IExchangePlugin implementation - callbacks
     void set_ticker_callback(TickerCallback callback) override;
@@ -66,6 +78,12 @@ public:
     bool can_make_request() const override;
     void record_request() override;
     std::chrono::milliseconds get_next_request_delay() const override;
+    
+    // IExchangePlugin implementation - data retrieval
+    std::vector<types::Ticker> get_all_tickers() override;
+    types::Ticker get_ticker(const std::string& symbol) override;
+    std::vector<std::string> get_supported_symbols() override;
+    types::OrderBook get_orderbook(const std::string& symbol, int depth = 20) override;
     
     // IExchangePlugin implementation - trading (default no-op implementations)
     bool supports_trading() const override { return false; }
@@ -147,7 +165,7 @@ private:
     
     // Statistics
     std::atomic<size_t> message_count_;
-    std::atomic<std::chrono::steady_clock::time_point> last_message_time_;
+    std::atomic<int64_t> last_message_time_ns_;  // Use nanoseconds since epoch as atomic int64_t
     mutable std::mutex latency_mutex_;
     std::deque<std::chrono::milliseconds> latency_samples_;
     static constexpr size_t MAX_LATENCY_SAMPLES = 100;

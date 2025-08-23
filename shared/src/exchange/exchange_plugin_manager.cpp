@@ -22,7 +22,7 @@ ExchangePluginManager::ExchangePluginManager()
     , file_watcher_running_(false) {
     
     // Set default plugin directory
-    plugin_directory_ = std::filesystem::current_path() / "plugins";
+    plugin_directory_ = (std::filesystem::current_path() / "plugins").string();
 }
 
 ExchangePluginManager::~ExchangePluginManager() {
@@ -67,7 +67,7 @@ bool ExchangePluginManager::load_plugin(const std::string& plugin_path) {
         
         // Check if already loaded
         if (plugins_.find(plugin_id) != plugins_.end()) {
-            utils::Logger::warning("Plugin already loaded: " + plugin_id);
+            utils::Logger::warn("Plugin already loaded: " + plugin_id);
             return true;
         }
         
@@ -130,7 +130,7 @@ bool ExchangePluginManager::load_plugin_from_memory(const std::string& plugin_id
         
         // Check if already loaded
         if (plugins_.find(normalized_id) != plugins_.end()) {
-            utils::Logger::warning("Built-in plugin already loaded: " + normalized_id);
+            utils::Logger::warn("Built-in plugin already loaded: " + normalized_id);
             return true;
         }
         
@@ -443,6 +443,12 @@ size_t ExchangePluginManager::get_running_plugins_count() const {
 // Private helper methods
 
 bool ExchangePluginManager::load_plugin_library(const std::string& plugin_path, PluginDescriptor& descriptor) {
+    // Function pointer declarations for both platforms
+    typedef std::unique_ptr<IExchangePlugin>(*CreateFuncPtr)();
+    typedef ExchangePluginMetadata(*MetadataFuncPtr)();
+    CreateFuncPtr create_func_ptr = nullptr;
+    MetadataFuncPtr metadata_func_ptr = nullptr;
+    
 #ifdef _WIN32
     HMODULE handle = LoadLibraryA(plugin_path.c_str());
     if (!handle) {
@@ -450,11 +456,11 @@ bool ExchangePluginManager::load_plugin_library(const std::string& plugin_path, 
         return false;
     }
     
-    // Get required functions
-    descriptor.create_function = reinterpret_cast<CreatePluginFunction*>(GetProcAddress(handle, CREATE_FUNCTION_NAME));
-    descriptor.metadata_function = reinterpret_cast<GetMetadataFunction*>(GetProcAddress(handle, METADATA_FUNCTION_NAME));
+    // Get required function pointers
+    create_func_ptr = reinterpret_cast<CreateFuncPtr>(GetProcAddress(handle, CREATE_FUNCTION_NAME));
+    metadata_func_ptr = reinterpret_cast<MetadataFuncPtr>(GetProcAddress(handle, METADATA_FUNCTION_NAME));
     
-    if (!descriptor.create_function || !descriptor.metadata_function) {
+    if (!create_func_ptr || !metadata_func_ptr) {
         FreeLibrary(handle);
         utils::Logger::error("Plugin missing required functions: " + plugin_path);
         return false;
@@ -468,11 +474,11 @@ bool ExchangePluginManager::load_plugin_library(const std::string& plugin_path, 
         return false;
     }
     
-    // Get required functions
-    descriptor.create_function = reinterpret_cast<CreatePluginFunction*>(dlsym(handle, CREATE_FUNCTION_NAME));
-    descriptor.metadata_function = reinterpret_cast<GetMetadataFunction*>(dlsym(handle, METADATA_FUNCTION_NAME));
+    // Get required function pointers
+    create_func_ptr = reinterpret_cast<CreateFuncPtr>(dlsym(handle, CREATE_FUNCTION_NAME));
+    metadata_func_ptr = reinterpret_cast<MetadataFuncPtr>(dlsym(handle, METADATA_FUNCTION_NAME));
     
-    if (!descriptor.create_function || !descriptor.metadata_function) {
+    if (!create_func_ptr || !metadata_func_ptr) {
         dlclose(handle);
         utils::Logger::error("Plugin missing required functions: " + plugin_path);
         return false;
@@ -480,6 +486,10 @@ bool ExchangePluginManager::load_plugin_library(const std::string& plugin_path, 
     
     descriptor.library_handle = handle;
 #endif
+    
+    // Wrap function pointers in std::function objects
+    descriptor.create_function = [create_func_ptr]() { return create_func_ptr(); };
+    descriptor.metadata_function = [metadata_func_ptr]() { return metadata_func_ptr(); };
     
     // Get metadata
     try {
