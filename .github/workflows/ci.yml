@@ -28,45 +28,49 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install dependencies (Ubuntu)
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install CMake (Ubuntu)
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential cmake libssl-dev libcurl4-openssl-dev libboost-all-dev
-        pip install conan
+        sudo apt-get install -y build-essential cmake
 
-    - name: Install dependencies (Windows)
+    - name: Install CMake (Windows)
       if: matrix.os == 'windows-latest'
       run: |
         choco install cmake
-        pip install conan
 
-    - name: Install dependencies (macOS)
+    - name: Install CMake (macOS)
       if: matrix.os == 'macos-latest'
       run: |
-        brew install cmake boost openssl curl
-        pip install conan
+        brew install cmake
 
-    - name: Setup Conan
+    - name: Setup Conan Client
+      uses: conan-io/setup-conan@v2
+      with:
+        cache: true
+        version: "2.x"
+
+    - name: Setup Conan Profile and Install Dependencies
       run: |
         conan profile detect --force
-        conan install . --build=missing
+        conan install . --build=missing --settings=build_type=${{ matrix.build_type }}
 
     - name: Configure CMake
       run: |
-        mkdir build
-        cd build
-        cmake .. -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        cmake -B build -S . -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_TOOLCHAIN_FILE=build/${{ matrix.build_type }}/generators/conan_toolchain.cmake
 
     - name: Build
       run: |
-        cd build
-        cmake --build . --config ${{ matrix.build_type }} --parallel
+        cmake --build build --config ${{ matrix.build_type }} --parallel
 
     - name: Test
       run: |
-        cd build
-        ctest --output-on-failure --parallel
+        ctest --test-dir build --output-on-failure --parallel --build-config ${{ matrix.build_type }}
 
   # Job for code quality checks (from ci.yml)
   code-quality:
