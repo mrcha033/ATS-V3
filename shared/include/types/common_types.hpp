@@ -326,7 +326,7 @@ struct TradeSignal {
     }
 
     TradeSignal(Timestamp ts, const Symbol& sym, const ExchangeId& ex, const std::string& s, Price p)
-        : timestamp(ts), symbol(sym), exchange(ex), price(p), quantity(0.0), confidence(0.0) {
+        : symbol(sym), exchange(ex), price(p), quantity(0.0), confidence(0.0), timestamp(ts) {
         if (s == "buy") {
             type = SignalType::BUY;
         } else if (s == "sell") {

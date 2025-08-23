@@ -1,5 +1,6 @@
 #include "utils/prometheus_exporter.hpp"
 #include "utils/logger.hpp"
+#include <sstream>
 
 namespace ats {
 namespace utils {

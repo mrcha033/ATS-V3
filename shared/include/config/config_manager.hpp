@@ -6,11 +6,14 @@
 #include <memory>
 #include <mutex>
 #include <functional>
+#include <thread>
+#include <atomic>
 #ifdef HAS_NLOHMANN_JSON
 #include <nlohmann/json.hpp>
 #endif
 #include "types/common_types.hpp"
 #include "utils/crypto_utils.hpp"
+#include "utils/logger.hpp"
 
 namespace ats {
 namespace config {
@@ -278,7 +281,7 @@ void ConfigManager::set_value(const std::string& key, const T& value) {
     // Notify change
     notify_config_change(keys[0], config_json_[keys[0]]);
 #else
-    utils::Logger::warn("JSON functionality disabled - config value setting not supported");
+    ats::utils::Logger::warn("JSON functionality disabled - config value setting not supported");
 #endif
 }
 
