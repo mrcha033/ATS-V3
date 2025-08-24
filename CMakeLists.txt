@@ -31,7 +31,6 @@ endif()
 # Find packages
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
-find_package(Boost REQUIRED COMPONENTS system thread)
 
 # Qt6 for UI dashboard
 find_package(Qt6 QUIET COMPONENTS Core Quick QuickControls2 Widgets Charts Pdf)
@@ -43,11 +42,10 @@ else()
     message(STATUS "Qt6 not found - UI Dashboard will be skipped")
 endif()
 
-# Include Conan
-find_package(PkgConfig REQUIRED)
-include(${CMAKE_BINARY_DIR}/conan_toolchain.cmake)
+# Include Conan dependencies
 find_package(nlohmann_json REQUIRED)
 find_package(spdlog REQUIRED)
+find_package(Boost REQUIRED COMPONENTS system thread)
 
 # Include directories
 include_directories(
