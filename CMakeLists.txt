@@ -80,7 +80,7 @@ endif()
 
 # Main executable
 add_executable(ats-v3
-    test_main.cpp
+    main.cpp
 )
 
 # Link libraries - minimal for testing
