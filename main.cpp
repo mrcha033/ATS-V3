@@ -13,21 +13,17 @@ using namespace ats;
 class ATSTradingSystem {
 private:
     std::atomic<bool> running_{true};
-    std::unique_ptr<exchange::ExchangePluginManager> plugin_manager_;
+    exchange::ExchangePluginManager& plugin_manager_;
     
 public:
-    ATSTradingSystem() {
-        plugin_manager_ = std::make_unique<exchange::ExchangePluginManager>();
+    ATSTradingSystem() : plugin_manager_(exchange::ExchangePluginManager::instance()) {
     }
     
     void initialize() {
         utils::Logger::info("=== ATS-V3 Production Trading System Starting ===");
         
-        // Initialize plugin manager
-        plugin_manager_->initialize();
-        
         // Load available exchange plugins
-        plugin_manager_->load_plugin("sample"); // Load sample plugin for testing
+        plugin_manager_.load_plugin("sample"); // Load sample plugin for testing
         
         utils::Logger::info("Trading system initialized successfully");
     }
@@ -58,9 +54,8 @@ public:
         utils::Logger::info("Shutting down ATS-V3 trading system...");
         running_.store(false);
         
-        if (plugin_manager_) {
-            plugin_manager_->shutdown();
-        }
+        // Unload all plugins
+        plugin_manager_.unload_all_plugins();
         
         utils::Logger::info("=== ATS-V3 Shutdown Complete ===");
     }
