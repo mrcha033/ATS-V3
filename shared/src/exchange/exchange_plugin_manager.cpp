@@ -633,25 +633,221 @@ void BuiltinPluginRegistry::load_all_builtin_plugins() {
     }
 }
 
-// File watcher stub implementations - TODO: implement proper file watching
+// Production-grade file watcher implementations
 void ExchangePluginManager::start_file_watcher() {
-    // TODO: Implement file watcher functionality
-    utils::Logger::debug("File watcher start requested (not implemented)");
+    if (file_watcher_running_.load()) {
+        utils::Logger::warn("File watcher is already running");
+        return;
+    }
+
+    if (!auto_scan_enabled_.load()) {
+        utils::Logger::debug("File watcher not started - auto scan is disabled");
+        return;
+    }
+
+    try {
+        // Initialize file timestamps for existing files
+        if (std::filesystem::exists(plugin_directory_)) {
+            auto write_lock = get_write_lock();
+            file_timestamps_.clear();
+            
+            for (const auto& entry : std::filesystem::directory_iterator(plugin_directory_)) {
+                if (entry.is_regular_file() && is_library_file(entry.path().filename().string())) {
+                    try {
+                        file_timestamps_[entry.path().string()] = std::filesystem::last_write_time(entry.path());
+                    } catch (const std::filesystem::filesystem_error& e) {
+                        utils::Logger::error("Failed to get timestamp for file: " + entry.path().string() + " - " + e.what());
+                    }
+                }
+            }
+        }
+
+        // Start the watcher thread
+        file_watcher_running_.store(true);
+        file_watcher_thread_ = std::make_unique<std::thread>([this]() {
+            utils::Logger::info("File watcher thread started, monitoring: " + plugin_directory_);
+            
+            while (file_watcher_running_.load()) {
+                try {
+                    scan_for_changes();
+                    std::this_thread::sleep_for(scan_interval_);
+                } catch (const std::exception& e) {
+                    utils::Logger::error("File watcher error: " + std::string(e.what()));
+                    // Continue running even if there's an error
+                    std::this_thread::sleep_for(std::chrono::seconds(5));
+                }
+            }
+            
+            utils::Logger::info("File watcher thread stopped");
+        });
+        
+        utils::Logger::info("File watcher started successfully");
+    } catch (const std::exception& e) {
+        file_watcher_running_.store(false);
+        utils::Logger::error("Failed to start file watcher: " + std::string(e.what()));
+        throw;
+    }
 }
 
 void ExchangePluginManager::stop_file_watcher() {
-    // TODO: Implement file watcher functionality  
-    utils::Logger::debug("File watcher stop requested (not implemented)");
+    if (!file_watcher_running_.load()) {
+        return; // Already stopped
+    }
+
+    try {
+        // Signal the thread to stop
+        file_watcher_running_.store(false);
+        
+        // Wait for the thread to finish
+        if (file_watcher_thread_ && file_watcher_thread_->joinable()) {
+            file_watcher_thread_->join();
+        }
+        
+        file_watcher_thread_.reset();
+        
+        // Clear file timestamps
+        {
+            auto write_lock = get_write_lock();
+            file_timestamps_.clear();
+        }
+        
+        utils::Logger::info("File watcher stopped successfully");
+    } catch (const std::exception& e) {
+        utils::Logger::error("Error stopping file watcher: " + std::string(e.what()));
+    }
 }
 
 void ExchangePluginManager::scan_for_changes() {
-    // TODO: Implement file change scanning
-    utils::Logger::debug("Plugin directory scan requested (not implemented)");
+    if (!std::filesystem::exists(plugin_directory_)) {
+        utils::Logger::warn("Plugin directory does not exist: " + plugin_directory_);
+        return;
+    }
+
+    try {
+        bool changes_detected = false;
+        std::vector<std::string> added_files;
+        std::vector<std::string> modified_files;
+        std::vector<std::string> removed_files;
+        
+        // Get current state of files
+        std::unordered_map<std::string, std::filesystem::file_time_type> current_files;
+        
+        for (const auto& entry : std::filesystem::directory_iterator(plugin_directory_)) {
+            if (entry.is_regular_file() && is_library_file(entry.path().filename().string())) {
+                try {
+                    current_files[entry.path().string()] = std::filesystem::last_write_time(entry.path());
+                } catch (const std::filesystem::filesystem_error& e) {
+                    utils::Logger::error("Failed to get timestamp for file: " + entry.path().string() + " - " + e.what());
+                }
+            }
+        }
+
+        // Compare with stored timestamps
+        {
+            auto write_lock = get_write_lock();
+            
+            // Check for new or modified files
+            for (const auto& [file_path, timestamp] : current_files) {
+                auto it = file_timestamps_.find(file_path);
+                if (it == file_timestamps_.end()) {
+                    // New file
+                    added_files.push_back(file_path);
+                    changes_detected = true;
+                } else if (it->second != timestamp) {
+                    // Modified file
+                    modified_files.push_back(file_path);
+                    changes_detected = true;
+                }
+            }
+            
+            // Check for removed files
+            for (const auto& [file_path, timestamp] : file_timestamps_) {
+                if (current_files.find(file_path) == current_files.end()) {
+                    removed_files.push_back(file_path);
+                    changes_detected = true;
+                }
+            }
+            
+            // Update stored timestamps
+            if (changes_detected) {
+                file_timestamps_ = std::move(current_files);
+                last_scan_time_ = std::chrono::system_clock::now();
+            }
+        }
+
+        // Handle detected changes
+        if (changes_detected) {
+            utils::Logger::info("Plugin directory changes detected - Added: " + 
+                std::to_string(added_files.size()) + ", Modified: " + 
+                std::to_string(modified_files.size()) + ", Removed: " + 
+                std::to_string(removed_files.size()));
+
+            // Handle removed files first
+            for (const auto& file_path : removed_files) {
+                handle_file_change(file_path); // This will unload the plugin
+            }
+            
+            // Handle modified files (reload)
+            for (const auto& file_path : modified_files) {
+                handle_file_change(file_path);
+            }
+            
+            // Handle new files (load)
+            for (const auto& file_path : added_files) {
+                handle_file_change(file_path);
+            }
+        }
+
+    } catch (const std::exception& e) {
+        utils::Logger::error("Error during directory scan: " + std::string(e.what()));
+    }
 }
 
 void ExchangePluginManager::handle_file_change(const std::string& file_path) {
-    // TODO: Implement file change handling
-    utils::Logger::debug("File change detected: " + file_path + " (not implemented)");
+    try {
+        std::string filename = std::filesystem::path(file_path).filename().string();
+        std::string plugin_id = filename.substr(0, filename.find_last_of('.'));
+        
+        if (!std::filesystem::exists(file_path)) {
+            // File was removed - unload plugin if it exists
+            if (is_plugin_loaded(plugin_id)) {
+                utils::Logger::info("Plugin file removed, unloading: " + plugin_id);
+                unload_plugin(plugin_id);
+            }
+            return;
+        }
+
+        // File was added or modified
+        if (is_plugin_loaded(plugin_id)) {
+            if (hot_reload_enabled_.load()) {
+                utils::Logger::info("Plugin file modified, hot reloading: " + plugin_id);
+                
+                // Stop the plugin first
+                stop_plugin(plugin_id);
+                
+                // Unload and reload
+                unload_plugin(plugin_id);
+                if (load_plugin(file_path)) {
+                    utils::Logger::info("Plugin hot reloaded successfully: " + plugin_id);
+                } else {
+                    utils::Logger::error("Failed to hot reload plugin: " + plugin_id);
+                }
+            } else {
+                utils::Logger::info("Plugin file modified but hot reload is disabled: " + plugin_id);
+            }
+        } else {
+            // New plugin file - load it
+            utils::Logger::info("New plugin file detected, loading: " + plugin_id);
+            if (load_plugin(file_path)) {
+                utils::Logger::info("New plugin loaded successfully: " + plugin_id);
+            } else {
+                utils::Logger::error("Failed to load new plugin: " + plugin_id);
+            }
+        }
+
+    } catch (const std::exception& e) {
+        utils::Logger::error("Error handling file change for " + file_path + ": " + std::string(e.what()));
+    }
 }
 
 } // namespace exchange

@@ -166,6 +166,7 @@ private:
     // File watcher thread
     std::unique_ptr<std::thread> file_watcher_thread_;
     std::atomic<bool> file_watcher_running_;
+    std::unordered_map<std::string, std::filesystem::file_time_type> file_timestamps_;
     
     // Constants
     static constexpr const char* PLUGIN_API_VERSION = "1.0.0";
