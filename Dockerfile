@@ -32,7 +32,7 @@ COPY . .
 
 # Build the application
 RUN mkdir build && cd build && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../conan_toolchain.cmake && \
     make -j$(nproc)
 
 # Create runtime user

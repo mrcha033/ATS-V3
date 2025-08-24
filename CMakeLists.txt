@@ -5,6 +5,11 @@ cmake_minimum_required(VERSION 3.16)
 
 project(ATS-V3 VERSION 1.0.0 LANGUAGES CXX)
 
+# Include Conan toolchain if it exists
+if(EXISTS "${CMAKE_CURRENT_BINARY_DIR}/conan_toolchain.cmake")
+    include("${CMAKE_CURRENT_BINARY_DIR}/conan_toolchain.cmake")
+endif()
+
 # Generate compile_commands.json for IntelliSense
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
