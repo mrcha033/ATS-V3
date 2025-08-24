@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 # Set CMake policies before project() and any find_package calls
-cmake_policy(SET CMP0167 NEW)  # Use new FindBoost behavior
+# cmake_policy(SET CMP0167 NEW)  # Use new FindBoost behavior - commented out for older CMake compatibility
 
 project(ATS-V3 VERSION 1.0.0 LANGUAGES CXX)
 
@@ -44,8 +44,10 @@ else()
 endif()
 
 # Include Conan
-# include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-# conan_basic_setup()
+find_package(PkgConfig REQUIRED)
+include(${CMAKE_BINARY_DIR}/conan_toolchain.cmake)
+find_package(nlohmann_json REQUIRED)
+find_package(spdlog REQUIRED)
 
 # Include directories
 include_directories(
