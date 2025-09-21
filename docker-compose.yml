@@ -34,6 +34,19 @@ services:
     networks:
       - ats-network
 
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: ats-redis-exporter
+    restart: unless-stopped
+    environment:
+      - REDIS_ADDR=redis:6379
+    ports:
+      - "9121:9121"
+    networks:
+      - ats-network
+    depends_on:
+      - redis
+
   influxdb:
     image: influxdb:2.7-alpine
     container_name: ats-influxdb

@@ -99,11 +99,11 @@ const std::map<std::string, double> SampleExchangePlugin::INITIAL_PRICES = {
 
 SampleExchangePlugin::SampleExchangePlugin()
     : simulation_running_(false)
+    , current_prices_(INITIAL_PRICES)
     , random_generator_(random_device_())
     , price_change_dist_(-0.02, 0.02)  // +/- 2% price changes
     , simulate_connection_issues_(false)
-    , update_interval_(std::chrono::milliseconds(1000))  // 1 second updates
-    , current_prices_(INITIAL_PRICES) {
+    , update_interval_(std::chrono::milliseconds(1000)) {  // 1 second updates
 }
 
 SampleExchangePlugin::~SampleExchangePlugin() {
